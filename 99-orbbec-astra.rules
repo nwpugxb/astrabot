@@ -1,0 +1,2 @@
+# Orbbec Astra Pro USB access (depth/IR sensor 2bc5:0403, color 2bc5:0501)
+SUBSYSTEM=="usb", ATTR{idVendor}=="2bc5", MODE="0666"

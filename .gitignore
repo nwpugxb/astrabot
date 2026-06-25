@@ -1,0 +1,16 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+
+# ROS2 colcon 构建产物
+build/
+install/
+log/
+
+# 建图输出（数据库、点云等）
+output/
+
+# IDE
+.vscode/
+.idea/

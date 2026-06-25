@@ -1,0 +1,30 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>astra_pro_slam</name>
+  <version>0.1.0</version>
+  <description>Orbbec Astra Pro camera driver and RTAB-Map handheld mapping for ROS2 Humble.</description>
+  <maintainer email="user@todo.todo">xiaobo</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>cv_bridge</exec_depend>
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>message_filters</exec_depend>
+  <exec_depend>sensor_msgs_py</exec_depend>
+  <exec_depend>rqt_image_view</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>astra_camera</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>rtabmap_odom</exec_depend>
+  <exec_depend>rtabmap_slam</exec_depend>
+  <exec_depend>rtabmap_viz</exec_depend>
+  <exec_depend>rtabmap_launch</exec_depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

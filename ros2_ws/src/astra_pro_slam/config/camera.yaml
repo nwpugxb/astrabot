@@ -1,0 +1,24 @@
+/**:
+  ros__parameters:
+    color_index: 2
+    color_device: "auto"
+    pair_rate_hz: 9.0
+    preview_rate_hz: 15.0
+    frame_id: "camera_link"
+    color_optical_frame: "camera_color_optical_frame"
+    depth_optical_frame: "camera_color_optical_frame"
+    # Color camera intrinsics (HFOV 63.1 deg). Depth is registered into this frame.
+    fx: 521.0
+    fy: 521.0
+    cx: 320.0
+    cy: 240.0
+    # Depth-sensor intrinsics (HFOV 58.4 deg, matches astra_raw disparity model).
+    depth_fx: 570.0
+    depth_fy: 570.0
+    depth_cx: 320.0
+    depth_cy: 240.0
+    # Depth conditioning.
+    min_depth_m: 0.35
+    max_depth_m: 6.0
+    register_depth: true
+    depth_color_baseline_m: 0.025
