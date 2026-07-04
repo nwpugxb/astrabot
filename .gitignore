@@ -1,16 +1,62 @@
 # Python
 venv/
+.venv/
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+*.egg
 
-# ROS2 colcon 构建产物
+# ROS2 colcon 构建产物（根目录、ros2_ws/、orbbec_ws/）
 build/
 install/
 log/
+COLCON_IGNORE
+AMENT_IGNORE
 
-# 建图输出（数据库、点云等）
+# 建图 / 录包输出（数据库、点云、rosbag 等）
 output/
+
+# SLAM / 可视化导出（常出现在仓库根目录）
+frames_*.gv
+frames_*.pdf
+*.db
+*.db3
+*.mcap
+*.ply
+*.pcd
+
+# 相机预览 / 诊断图（脚本可能写到 output/ 或根目录）
+depth_check.png
+diag_*.png
+compare_*.ply
+
+# PlatformIO / ESP32 固件
+.pio/
+*.bin
+*.elf
+
+# 环境与密钥
+.env
+.env.*
+!.env.example
 
 # IDE
 .vscode/
 .idea/
+.cursor/*
+!.cursor/rules/
+!.cursor/skills/
+*.code-workspace
+.history/
+
+# 编辑器 / 系统临时文件
+*~
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

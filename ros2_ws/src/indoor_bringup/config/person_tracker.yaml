@@ -1,0 +1,33 @@
+# Person detection + Kalman tracking (Astra RGB + depth).
+# Nav2: enable publish_scan and add person_scan to local_costmap (navigation.launch use_nav_person).
+
+person_tracker:
+  ros__parameters:
+    color_topic: /camera/color/image_raw
+    depth_topic: /camera/depth/image_raw
+    camera_info_topic: /camera/color/camera_info
+    detections_topic: /perception/detections
+    # internal = Ultralytics YOLO on RGB; external = vision_msgs (ros2_yolo / depthai bridge)
+    detection_mode: internal
+    model_path: yolov8n.pt
+    confidence_threshold: 0.45
+    person_class_names: ["person"]
+    target_frame: base_footprint
+    markers_topic: /perception/person_markers
+    scan_topic: /perception/person_scan
+    publish_scan: true
+    foot_strip_ratio: 0.15
+    min_person_radius_m: 0.30
+    predict_horizon_s: 0.5
+    max_association_dist_m: 1.5
+    max_misses: 8
+    detection_rate_hz: 5.0
+    publish_rate_hz: 10.0
+    max_depth_m: 4.0
+    process_noise: 0.8
+    measurement_noise: 0.2
+    scan_num_bins: 720
+    scan_angle_min: -3.14159
+    scan_angle_max: 3.14159
+    scan_range_min: 0.08
+    scan_range_max: 4.0

@@ -23,6 +23,7 @@ echo "  Terminal 2 (drive):  ./scripts/teleop.sh"
 echo "  Stop mapping:        Ctrl-C here"
 echo "  View in RViz:        ./view_mobile_map.sh"
 echo "  View PLY (Open3D):   ./view_cloud.sh"
+echo "  Plane ICP mode:      USE_PLANE_ICP=1 ./run_mobile_mapping.sh"
 
 LAUNCH_ARGS=()
 if [[ -n "${CAMERA_PITCH_DEG:-}" ]]; then
@@ -30,5 +31,10 @@ if [[ -n "${CAMERA_PITCH_DEG:-}" ]]; then
 fi
 if [[ -n "${CAMERA_ROLL_DEG:-}" ]]; then
   LAUNCH_ARGS+=(camera_roll_deg:="${CAMERA_ROLL_DEG}")
+fi
+if [[ "${USE_PLANE_ICP:-}" == "1" ]]; then
+  PLANE_CFG="$(ros2 pkg prefix mobile_base)/share/mobile_base/config/rtabmap_mobile_plane_icp.yaml"
+  LAUNCH_ARGS+=(use_wall_plane_cloud:=true "rtabmap_config:=${PLANE_CFG}")
+  echo "  SLAM profile  : plane ICP (wall_plane_cloud + loop BA)"
 fi
 exec ros2 launch mobile_base mobile_mapping.launch.py "${LAUNCH_ARGS[@]}" "$@"

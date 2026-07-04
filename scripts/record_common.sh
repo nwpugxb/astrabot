@@ -43,8 +43,8 @@ record_wait_for_topics() {
   return 1
 }
 
-# Raw sensor topics for RTAB-Map offline replay.
-# Do NOT record /tf or /tf_static — offline_slam.sh rebuilds TF from current URDF.
+# Raw sensor topics consumed by mobile_mapping / RTAB-Map (see mobile_mapping.launch.py remappings).
+# Do NOT record /tf or /tf_static — offline_slam.sh rebuilds TF from URDF + camera_static_tf.
 RECORD_TOPICS_HANDHELD=(
   /camera/color/image_raw
   /camera/color/camera_info
@@ -58,11 +58,28 @@ RECORD_WAIT_TOPICS_MOBILE=(
   /odom
 )
 
+# RTAB-Map inputs + encoder telemetry for offline diagnostics.
 RECORD_TOPICS_MOBILE=(
   "${RECORD_TOPICS_HANDHELD[@]}"
   /odom
   /arduino_feedback
 )
+
+# Sidecar metadata for offline replay (camera pitch/roll, fps).
+record_write_mobile_meta() {
+  local bag_dir="$1"
+  local pitch="$2"
+  local roll="$3"
+  local fps="$4"
+  cat > "${bag_dir}/record_meta.env" <<EOF
+# Sensor settings used during ./record_mobile.sh (matches run_mobile_mapping.sh).
+camera_pitch_deg=${pitch}
+camera_roll_deg=${roll}
+color_fps=${fps}
+depth_fps=${fps}
+recorded_at=$(date -Iseconds)
+EOF
+}
 
 record_stop_all() {
   local root="$1"

@@ -1,0 +1,27 @@
+/**:
+  ros__parameters:
+    use_sim_time: true
+    frame_id: "base_footprint"
+    odom_frame_id: "odom"
+    publish_tf: false
+    approx_sync: true
+    approx_sync_max_interval: 0.25
+    topic_queue_size: 50
+    sync_queue_size: 50
+    qos_image: 1
+    qos_camera_info: 1
+    wait_imu_to_init: false
+    # Use wheel odom TF (odom->base_footprint) as motion guess.
+    Odom/GuessMotion: "false"
+    Odom/KeyFrameThr: "0.3"
+    Odom/ResetCountdown: "3"
+    OdomF2M/MaxSize: "2000"
+    OdomF2M/BundleAdjustment: "1"
+    Vis/MinInliers: "12"
+    Vis/MaxFeatures: "1200"
+    Vis/FeatureType: "0"
+    GFTT/MinDistance: "5.0"
+    GFTT/QualityLevel: "0.001"
+    Vis/CorNNDR: "0.7"
+    wait_for_transform: 2.0
+    tf_tolerance: 0.5

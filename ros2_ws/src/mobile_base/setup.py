@@ -28,6 +28,7 @@ setup(
             "odom_path_node = mobile_base.odom_path_node:main",
             "odom_tf_broadcaster = mobile_base.odom_tf_broadcaster:main",
             "odom_covariance = mobile_base.odom_covariance_node:main",
+            "wall_plane_cloud_node = mobile_base.wall_plane_cloud_node:main",
         ],
     },
 )

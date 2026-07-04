@@ -1,0 +1,117 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+Visualization Manager:
+  Global Options:
+    Fixed Frame: map
+    Frame Rate: 30
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: true
+      Cell Size: 1
+      Plane: XY
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Sim_World
+      Enabled: true
+      Topic:
+        Value: /sim/world_markers
+      Namespaces:
+        sim_world: true
+        sim_labels: true
+        sim_robot: true
+    - Class: rviz_default_plugins/Map
+      Name: Static_Map
+      Enabled: true
+      Topic:
+        Value: /map
+        Durability Policy: Transient Local
+      Alpha: 0.9
+      Draw Behind: true
+      Color Scheme: map
+    - Class: rviz_default_plugins/Map
+      Name: Local_Costmap
+      Enabled: true
+      Topic:
+        Value: /local_costmap/costmap
+        Durability Policy: Transient Local
+      Alpha: 0.45
+      Color Scheme: costmap
+    - Class: rviz_default_plugins/Map
+      Name: Global_Costmap
+      Enabled: false
+      Topic:
+        Value: /global_costmap/costmap
+        Durability Policy: Transient Local
+      Alpha: 0.35
+      Color Scheme: costmap
+    - Class: rviz_default_plugins/RobotModel
+      Name: RobotModel
+      Enabled: true
+      Description Topic:
+        Value: /robot_description
+    - Class: rviz_default_plugins/PoseArray
+      Name: AMCL_Particles
+      Enabled: true
+      Topic:
+        Value: /particlecloud
+      Color: 255; 0; 255
+    - Class: rviz_default_plugins/Path
+      Name: Global_Plan
+      Enabled: true
+      Topic:
+        Value: /plan
+      Color: 0; 255; 0
+    - Class: rviz_default_plugins/Path
+      Name: Local_Plan
+      Enabled: true
+      Topic:
+        Value: /local_plan
+      Color: 0; 170; 255
+    - Class: rviz_default_plugins/LaserScan
+      Name: Lidar_A1
+      Enabled: false
+      Topic:
+        Value: /scan
+      Color: 255; 80; 80
+      Size (m): 0.03
+    - Class: rviz_default_plugins/LaserScan
+      Name: Layer_Depth
+      Enabled: false
+      Topic:
+        Value: /mapping/layers/depth_scan
+      Color: 0; 180; 255
+      Size (m): 0.05
+    - Class: rviz_default_plugins/LaserScan
+      Name: Layer_ToF
+      Enabled: false
+      Topic:
+        Value: /mapping/layers/tof_scan
+      Color: 255; 200; 0
+      Size (m): 0.06
+    - Class: rviz_default_plugins/LaserScan
+      Name: Fused_Scan
+      Enabled: false
+      Topic:
+        Value: /scan_fused
+      Color: 0; 255; 0
+      Size (m): 0.03
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Enabled: false
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/SetInitialPose
+      Topic:
+        Value: /initialpose
+    - Class: rviz_default_plugins/SetGoal
+      Topic:
+        Value: /goal_pose
+  Views:
+    Current:
+      Class: rviz_default_plugins/TopDownOrtho
+      Name: TopDown
+      Scale: 18
+      X: 0
+      "Y": 0
+      Angle: 0

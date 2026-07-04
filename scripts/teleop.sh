@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # Curses WASD teleop — hold W/A/S/D to move, release to stop (needs evdev/input group).
+# Publishes /arduino_teleop_cmd (Arduino UNO + arduino_base_node).
+# ESP32 micro-ROS deck robot: use ./scripts/deck_teleop.sh instead (/cmd_vel).
 set -eo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

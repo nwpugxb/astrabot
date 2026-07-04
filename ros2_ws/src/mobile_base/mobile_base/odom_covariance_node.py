@@ -25,15 +25,26 @@ class OdomCovarianceRepublisher(Node):
         out.child_frame_id = msg.child_frame_id
         out.pose = msg.pose
         out.twist = msg.twist
-        # Trust XY/yaw from wheel encoders; reject roll/pitch drift from vision.
-        out.pose.covariance[0] = 0.02
-        out.pose.covariance[7] = 0.02
+        # Pass through bag covariance when present (e.g. turn-dynamic from arduino_base).
+        yaw_cov = msg.pose.covariance[35]
+        lin_cov = msg.pose.covariance[0]
+        if yaw_cov <= 0.0 or lin_cov <= 0.0:
+            lin_cov = 0.02
+            yaw_cov = 0.05
+        out.pose.covariance[0] = lin_cov
+        out.pose.covariance[7] = lin_cov
         out.pose.covariance[14] = 1e6
         out.pose.covariance[21] = 1e6
         out.pose.covariance[28] = 1e6
-        out.pose.covariance[35] = 0.05
-        out.twist.covariance[0] = 0.02
-        out.twist.covariance[35] = 0.05
+        out.pose.covariance[35] = yaw_cov
+        twist_yaw = msg.twist.covariance[35]
+        twist_lin = msg.twist.covariance[0]
+        if twist_yaw <= 0.0:
+            twist_yaw = yaw_cov
+        if twist_lin <= 0.0:
+            twist_lin = lin_cov
+        out.twist.covariance[0] = twist_lin
+        out.twist.covariance[35] = twist_yaw
         self._pub.publish(out)
 
 

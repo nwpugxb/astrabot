@@ -45,7 +45,7 @@ const int LEFT_IN4 = 11;
 
 
 // ---------------- Wheel parameters ----------------
-const float COUNTS_PER_WHEEL_REV = 565.0;
+const float COUNTS_PER_WHEEL_REV = 564.0;
 const float WHEEL_DIAMETER_MM = 64.6;
 const float MM_PER_COUNT = 3.1415926 * WHEEL_DIAMETER_MM / COUNTS_PER_WHEEL_REV;
 
@@ -56,6 +56,11 @@ const unsigned long CONTROL_INTERVAL_MS = 100;
 // Speed unit: count / 100ms
 const float TARGET_MIN = 30.0;
 const float TARGET_MAX = 80.0;
+
+// Lowest target the navigation stack (w command) can request.
+// Magnitude below this is treated as 0 because the wheels can't track it
+// reliably. Calibrate on hardware: lower until the wheel stops turning smoothly.
+const float TARGET_DEADBAND = 10.0;
 
 // P controller
 float KpRight = 2.5;
@@ -125,6 +130,8 @@ void leftCountPulse() {
 float getBasePWM(float targetAbs) {
   if (targetAbs <= 0) return 0;
 
+  if (targetAbs <= 12) return 68;   // low-speed feedforward (calibrate on hardware)
+  if (targetAbs <= 20) return 73;   // low-speed feedforward (calibrate on hardware)
   if (targetAbs <= 30) return 78;
   if (targetAbs <= 40) return 88;
   if (targetAbs <= 55) return 105;
@@ -221,15 +228,35 @@ void setTargets(float right, float left) {
 
 
 // ======================================================
+// Raw signed wheel-speed target (counts/100ms), used by the `w R L` command
+// for ROS velocity control. Unlike setTargets() it does NOT force the teleop
+// TARGET_MIN floor (so the robot can crawl), and does NOT reset the PWM ramp /
+// fault state, because navigation streams this command continuously.
+// ======================================================
+float clampTarget(float speed) {
+  float a = fabs(speed);
+  if (a < TARGET_DEADBAND) return 0.0;   // below this the wheel can't track it
+  if (a > TARGET_MAX) a = TARGET_MAX;
+  return (speed >= 0) ? a : -a;
+}
+
+void setTargetsRaw(float right, float left) {
+  targetRight = clampTarget(right);
+  targetLeft  = clampTarget(left);
+}
+
+
+// ======================================================
 // Serial command handling
 // Commands:
-// f 30  -> forward
-// b 30  -> backward
-// l 30  -> turn left in place
-// r 30  -> turn right in place
-// s     -> stop
-// q     -> square
-// clear -> clear fault
+// f 30   -> forward
+// b 30   -> backward
+// l 30   -> turn left in place
+// r 30   -> turn right in place
+// w 30 20 -> set right/left wheel speeds (counts/100ms, signed; ROS cmd_vel)
+// s      -> stop
+// q      -> square
+// clear  -> clear fault
 // ======================================================
 void processCommand(String cmd) {
   cmd.trim();
@@ -257,6 +284,25 @@ void processCommand(String cmd) {
     squareStep = 0;
     squareStepStartTime = millis();
     Serial.println("Square mode started.");
+    return;
+  }
+
+  // w <right> <left>: signed wheel speeds in counts/100ms (ROS velocity control).
+  // Enables arbitrary (v, w): different left/right speeds -> arcs, not just
+  // forward / in-place turns. Must be parsed before the generic single-arg path
+  // below because it takes two (possibly negative) arguments.
+  if (cmd.charAt(0) == 'w' || cmd.charAt(0) == 'W') {
+    String rest = cmd.substring(1);
+    rest.trim();
+    int sp = rest.indexOf(' ');
+    if (sp <= 0) {
+      Serial.println("Use: w <right> <left>");
+      return;
+    }
+    float r = rest.substring(0, sp).toFloat();
+    float l = rest.substring(sp + 1).toFloat();
+    squareMode = false;
+    setTargetsRaw(r, l);
     return;
   }
 
@@ -450,6 +496,7 @@ void setup() {
   Serial.println("b 30  -> backward");
   Serial.println("l 30  -> turn left in place");
   Serial.println("r 30  -> turn right in place");
+  Serial.println("w R L -> set wheel speeds counts/100ms (signed, ROS cmd_vel)");
   Serial.println("s     -> stop");
   Serial.println("q     -> square by time");
   Serial.println("clear -> clear fault");

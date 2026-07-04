@@ -28,6 +28,7 @@ def generate_launch_description():
         ("rgb/camera_info", "/camera/color/camera_info"),
         ("depth/image", "/camera/depth/image_raw"),
         ("odom", "/odom"),
+        ("scan_cloud", "/wall_plane_cloud"),
     ]
 
     return LaunchDescription(
@@ -38,6 +39,8 @@ def generate_launch_description():
             DeclareLaunchArgument("camera_pitch_deg", default_value="17.0"),
             DeclareLaunchArgument("camera_roll_deg", default_value="0.0"),
             DeclareLaunchArgument("use_laser_scan", default_value="false"),
+            DeclareLaunchArgument("use_wall_plane_cloud", default_value="false"),
+            DeclareLaunchArgument("rtabmap_config", default_value=rtabmap_params),
             LogInfo(msg=f"Mobile map database: {default_db}"),
             Node(
                 package="astra_camera",
@@ -117,6 +120,17 @@ def generate_launch_description():
                 condition=IfCondition(LaunchConfiguration("use_laser_scan")),
             ),
             Node(
+                package="mobile_base",
+                executable="wall_plane_cloud_node",
+                name="wall_plane_cloud",
+                output="screen",
+                remappings=[
+                    ("depth/image_raw", "/camera/depth/image_raw"),
+                    ("depth/camera_info", "/camera/color/camera_info"),
+                ],
+                condition=IfCondition(LaunchConfiguration("use_wall_plane_cloud")),
+            ),
+            Node(
                 package="astra_pro_slam",
                 executable="rgbd_cloud_node",
                 name="rgbd_cloud",
@@ -133,7 +147,7 @@ def generate_launch_description():
                 executable="rtabmap",
                 output="screen",
                 parameters=[
-                    rtabmap_params,
+                    LaunchConfiguration("rtabmap_config"),
                     {"database_path": LaunchConfiguration("database_path")},
                 ],
                 remappings=remappings,
@@ -145,7 +159,7 @@ def generate_launch_description():
                 executable="rtabmap",
                 output="screen",
                 parameters=[
-                    rtabmap_params,
+                    LaunchConfiguration("rtabmap_config"),
                     {"database_path": LaunchConfiguration("database_path")},
                 ],
                 remappings=remappings,

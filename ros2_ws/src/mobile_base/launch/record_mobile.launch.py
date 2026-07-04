@@ -1,11 +1,12 @@
-"""Record-only: Orbbec camera + Arduino wheel odometry + robot TF (no SLAM)."""
+"""Record-only: same sensor stack as mobile_mapping.launch.py (no SLAM / RViz)."""
 
 import os
 
 from ament_index_python.packages import get_package_share_directory
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, IncludeLaunchDescription, LogInfo
-from launch.launch_description_sources import AnyLaunchDescriptionSource
+from launch.conditions import IfCondition
+from launch.launch_description_sources import AnyLaunchDescriptionSource, PythonLaunchDescriptionSource
 from launch.substitutions import Command, LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
@@ -19,9 +20,12 @@ def generate_launch_description():
 
     return LaunchDescription(
         [
-            DeclareLaunchArgument("color_fps", default_value="15"),
-            DeclareLaunchArgument("depth_fps", default_value="15"),
-            LogInfo(msg="Record mode: camera + wheel odom + TF. No SLAM."),
+            DeclareLaunchArgument("color_fps", default_value="30"),
+            DeclareLaunchArgument("depth_fps", default_value="30"),
+            DeclareLaunchArgument("camera_pitch_deg", default_value="17.0"),
+            DeclareLaunchArgument("camera_roll_deg", default_value="0.0"),
+            DeclareLaunchArgument("use_laser_scan", default_value="false"),
+            LogInfo(msg="Record mode: same sensors as mobile_mapping (no RTAB-Map)."),
             Node(
                 package="astra_camera",
                 executable="clean_shm_node",
@@ -42,6 +46,17 @@ def generate_launch_description():
                     "depth_fps": LaunchConfiguration("depth_fps"),
                     "oni_log_level": "warning",
                     "oni_log_to_console": "false",
+                    "publish_tf": "false",
+                }.items(),
+            ),
+            IncludeLaunchDescription(
+                PythonLaunchDescriptionSource(
+                    os.path.join(mobile_share, "launch", "camera_static_tf.launch.py")
+                ),
+                launch_arguments={
+                    "use_sim_time": "false",
+                    "camera_pitch_deg": LaunchConfiguration("camera_pitch_deg"),
+                    "camera_roll_deg": LaunchConfiguration("camera_roll_deg"),
                 }.items(),
             ),
             Node(
@@ -69,6 +84,26 @@ def generate_launch_description():
                         )
                     }
                 ],
+            ),
+            Node(
+                package="depthimage_to_laserscan",
+                executable="depthimage_to_laserscan_node",
+                name="depth_to_scan",
+                output="screen",
+                remappings=[
+                    ("depth", "/camera/depth/image_raw"),
+                    ("depth_camera_info", "/camera/depth/camera_info"),
+                    ("scan", "/scan"),
+                ],
+                parameters=[
+                    {
+                        "scan_height": 1,
+                        "range_min": 0.08,
+                        "range_max": 4.0,
+                        "output_frame": "base_link",
+                    }
+                ],
+                condition=IfCondition(LaunchConfiguration("use_laser_scan")),
             ),
         ]
     )

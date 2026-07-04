@@ -1,0 +1,41 @@
+# Inspection patrol waypoints in the map frame.
+# Record poses in RViz (2D Nav Goal) or drive-and-save after mapping.
+# yaw is radians; if omitted, defaults to 0.
+#
+# action: what to do after reaching the point
+#   wait       - pause dwell_s seconds (default inspection stub)
+#   capture    - trigger a snapshot (publishes /patrol/capture_request)
+#   log        - log only (no extra dwell beyond dwell_s)
+#
+# Example: replace x/y/yaw with your room coordinates.
+
+patrol:
+  loop: true              # repeat route after last waypoint
+  max_rounds: 0           # 0 = infinite loops
+  default_dwell_s: 3.0    # pause at each point (inspection window)
+  home:                   # optional return after each round (null to skip)
+    x: 0.0
+    y: 0.0
+    yaw: 0.0
+
+  waypoints:
+    - name: "point_a"
+      x: 1.0
+      y: 0.0
+      yaw: 0.0
+      dwell_s: 3.0
+      action: "capture"
+
+    - name: "point_b"
+      x: 1.0
+      y: 1.0
+      yaw: 1.5708
+      dwell_s: 2.0
+      action: "wait"
+
+    - name: "point_c"
+      x: 0.0
+      y: 1.0
+      yaw: 3.1416
+      dwell_s: 2.0
+      action: "log"

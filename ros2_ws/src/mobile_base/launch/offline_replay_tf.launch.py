@@ -83,6 +83,9 @@ def generate_launch_description():
                 executable="odom_tf_broadcaster",
                 name="odom_tf_broadcaster",
                 output="screen",
+                parameters=[
+                    {"use_sim_time": LaunchConfiguration("use_sim_time")},
+                ],
             ),
         ]
     )

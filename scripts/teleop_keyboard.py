@@ -4,7 +4,11 @@
 Hold W/A/S/D to move; release to stop immediately (via Linux evdev key-up events).
 Requires membership in the Linux 'input' group. Run: ./scripts/setup_teleop_input.sh
 
-Publishes /arduino_teleop_cmd for arduino_base_node during mobile mapping.
+Default ROS mode publishes /arduino_teleop_cmd for arduino_base_node (Arduino UNO).
+ESP32 micro-ROS deck robot uses /cmd_vel instead:
+
+  ./scripts/deck_teleop.sh
+
 Direct serial mode (no ROS):  ./scripts/teleop.sh --direct
 """
 
@@ -14,6 +18,7 @@ import argparse
 import curses
 import glob
 import grp
+import math
 import os
 import queue
 import re
@@ -24,6 +29,7 @@ from typing import Callable, Optional, Protocol
 
 import rclpy
 import serial
+from geometry_msgs.msg import Twist
 from rclpy.node import Node
 from std_msgs.msg import String
 
@@ -33,6 +39,12 @@ REPEAT_INTERVAL = 0.20
 LOOP_INTERVAL = 0.02
 SERIAL_PORT = "/dev/ttyACM0"
 BAUD_RATE = 115200
+
+# Deck robot / ESP32 micro-ROS (config_l298n.h geometry).
+WHEEL_D_M = 0.0646
+WHEEL_SEP_M = 0.208
+COUNTS_PER_REV = 564.0
+M_PER_COUNT = math.pi * WHEEL_D_M / COUNTS_PER_REV
 
 MOTION_PRIORITY = ("f", "b", "l", "r")
 
@@ -47,6 +59,38 @@ class HoldTracker(Protocol):
 
 def _motion_cmd(motion: str, speed: int) -> str:
     return "s" if motion == "s" else f"{motion} {speed}"
+
+
+def _counts_to_mps(counts_per_100ms: float) -> float:
+    if M_PER_COUNT <= 0:
+        return 0.0
+    return counts_per_100ms * M_PER_COUNT / 0.1
+
+
+def _parse_motion_cmd(cmd: str) -> tuple[str, int]:
+    cmd = cmd.strip()
+    if not cmd or cmd.lower() == "s":
+        return "s", MIN_SPEED
+    parts = cmd.split()
+    motion = parts[0].lower()
+    speed = int(float(parts[1])) if len(parts) > 1 else MIN_SPEED
+    return motion, speed
+
+
+def _motion_speed_to_twist(motion: str, speed: int) -> Twist:
+    twist = Twist()
+    if motion == "s":
+        return twist
+    mps = _counts_to_mps(float(speed))
+    if motion == "f":
+        twist.linear.x = mps
+    elif motion == "b":
+        twist.linear.x = -mps
+    elif motion == "l":
+        twist.angular.z = 2.0 * mps / WHEEL_SEP_M
+    elif motion == "r":
+        twist.angular.z = -2.0 * mps / WHEEL_SEP_M
+    return twist
 
 
 def _user_groups() -> set[str]:
@@ -466,6 +510,28 @@ def run_direct_serial(stdscr, tracker: HoldTracker) -> None:
     _drive_loop(stdscr, tracker, send_cmd, poll_feedback, "direct serial", lambda: True, on_exit)
 
 
+class CmdVelTeleopBridge(Node):
+    """Hold-to-drive teleop for ESP32 / micro-ROS (/cmd_vel)."""
+
+    def __init__(self, cmd_vel_topic: str = "/cmd_vel") -> None:
+        super().__init__("teleop_cmd_vel")
+        self._pub = self.create_publisher(Twist, cmd_vel_topic, 10)
+        self._last_twist = Twist()
+        self.get_logger().info(f"evdev teleop -> {cmd_vel_topic} (hold WASD, release stop)")
+
+    def send_cmd(self, cmd: str) -> None:
+        motion, speed = _parse_motion_cmd(cmd)
+        twist = _motion_speed_to_twist(motion, speed)
+        self._pub.publish(twist)
+        self._last_twist = twist
+
+    def drain_feedback(self) -> Optional[str]:
+        t = self._last_twist
+        if abs(t.linear.x) < 1e-6 and abs(t.angular.z) < 1e-6:
+            return "cmd_vel stop"
+        return f"cmd_vel lin={t.linear.x:.3f} ang={t.angular.z:.3f}"
+
+
 class RosTeleopBridge(Node):
     def __init__(self) -> None:
         super().__init__("teleop_curses")
@@ -491,9 +557,14 @@ class RosTeleopBridge(Node):
         return last
 
 
-def run_ros_teleop(stdscr, tracker: HoldTracker) -> None:
+def run_ros_teleop(stdscr, tracker: HoldTracker, cmd_vel: bool = False) -> None:
     rclpy.init()
-    node = RosTeleopBridge()
+    node: RosTeleopBridge | CmdVelTeleopBridge
+    mode = "ROS /cmd_vel (ESP32 micro-ROS)" if cmd_vel else "ROS /arduino_teleop_cmd"
+    if cmd_vel:
+        node = CmdVelTeleopBridge()
+    else:
+        node = RosTeleopBridge()
     spin_stop = threading.Event()
 
     def spin() -> None:
@@ -514,7 +585,7 @@ def run_ros_teleop(stdscr, tracker: HoldTracker) -> None:
             tracker,
             node.send_cmd,
             node.drain_feedback,
-            "ROS /arduino_teleop_cmd",
+            mode,
             lambda: rclpy.ok(),
             on_exit,
         )
@@ -529,6 +600,11 @@ def main() -> int:
         "--direct",
         action="store_true",
         help="Talk to /dev/ttyACM0 directly (do not use while run_mobile_mapping.sh is running)",
+    )
+    parser.add_argument(
+        "--cmd-vel",
+        action="store_true",
+        help="Publish geometry_msgs/Twist on /cmd_vel (ESP32 micro-ROS deck robot)",
     )
     parser.add_argument(
         "--input-device",
@@ -547,7 +623,7 @@ def main() -> int:
         if args.direct:
             curses.wrapper(lambda stdscr: run_direct_serial(stdscr, tracker))
         else:
-            curses.wrapper(lambda stdscr: run_ros_teleop(stdscr, tracker))
+            curses.wrapper(lambda stdscr: run_ros_teleop(stdscr, tracker, args.cmd_vel))
     except KeyboardInterrupt:
         tracker.stop()
         return 0

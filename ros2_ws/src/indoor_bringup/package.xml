@@ -1,0 +1,61 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>indoor_bringup</name>
+  <version>0.1.0</version>
+  <description>Indoor inspection robot bringup: A1 lidar + Astra Pro + slam_toolbox (new stepper/ESP32 chassis).</description>
+  <maintainer email="user@todo.todo">xiaobo</maintainer>
+  <license>MIT</license>
+
+  <buildtool_depend>ament_python</buildtool_depend>
+
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>cv_bridge</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
+  <exec_depend>nav2_simple_commander</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <!-- Optional GUI viz: sudo apt install ros-humble-joint-state-publisher -->
+  <exec_depend>tf2_ros</exec_depend>
+  <exec_depend>teleop_twist_keyboard</exec_depend>
+  <exec_depend>slam_toolbox</exec_depend>
+  <exec_depend>robot_localization</exec_depend>
+  <exec_depend>imu_filter_madgwick</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <!-- Nav2 (M5) -->
+  <exec_depend>nav2_map_server</exec_depend>
+  <exec_depend>nav2_amcl</exec_depend>
+  <exec_depend>nav2_controller</exec_depend>
+  <exec_depend>nav2_planner</exec_depend>
+  <exec_depend>nav2_smoother</exec_depend>
+  <exec_depend>nav2_behaviors</exec_depend>
+  <exec_depend>nav2_bt_navigator</exec_depend>
+  <exec_depend>nav2_waypoint_follower</exec_depend>
+  <exec_depend>nav2_velocity_smoother</exec_depend>
+  <exec_depend>nav2_lifecycle_manager</exec_depend>
+  <exec_depend>nav2_regulated_pure_pursuit_controller</exec_depend>
+  <exec_depend>visualization_msgs</exec_depend>
+  <exec_depend>vision_msgs</exec_depend>
+  <!-- Gazebo Sim (optional — for simulation.launch.py) -->
+  <exec_depend>xacro</exec_depend>
+  <exec_depend>ros_gz_sim</exec_depend>
+  <exec_depend>ros_gz_bridge</exec_depend>
+  <exec_depend>ros_gz_image</exec_depend>
+  <exec_depend>gz_ros2_control</exec_depend>
+  <exec_depend>controller_manager</exec_depend>
+  <exec_depend>diff_drive_controller</exec_depend>
+  <exec_depend>joint_state_broadcaster</exec_depend>
+  <!-- Camera driver (reused from orbbec_ws). -->
+  <exec_depend>astra_camera</exec_depend>
+  <!-- A1 lidar driver: install separately (sllidar_ros2 from source, or ros-humble-rplidar-ros). -->
+  <!-- <exec_depend>sllidar_ros2</exec_depend> -->
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

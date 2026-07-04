@@ -1,0 +1,46 @@
+# Parameters for layered mapping (A1 + Astra depth + VL53L1X -> /scan_fused).
+
+depth_scan_layer:
+  ros__parameters:
+    depth_topic: "/camera/depth/image_raw"
+    camera_info_topic: "/camera/color/camera_info"
+    output_topic: "/mapping/layers/depth_scan"
+    target_frame: "base_footprint"
+    # Low obstacle band in base frame (m). Tune after mounting camera.
+    min_z_m: 0.05
+    max_z_m: 0.40
+    stride: 2
+    max_depth_m: 4.0
+    num_bins: 720
+    angle_min: -3.14159
+    angle_max: 3.14159
+    range_min: 0.08
+    range_max: 4.0
+
+tof_scan_layer:
+  ros__parameters:
+    topics: ["/tof_front", "/tof_left", "/tof_right"]
+    output_topic: "/mapping/layers/tof_scan"
+    target_frame: "base_footprint"
+    num_bins: 720
+    angle_min: -3.14159
+    angle_max: 3.14159
+    range_min: 0.04
+    range_max: 4.0
+    default_fov_rad: 0.47
+
+scan_fusion:
+  ros__parameters:
+    use_lidar: true
+    use_depth: true
+    use_tof: true
+    lidar_topic: "/scan"
+    depth_topic: "/mapping/layers/depth_scan"
+    tof_topic: "/mapping/layers/tof_scan"
+    output_topic: "/scan_fused"
+    mirror_lidar_topic: "/mapping/layers/lidar_scan"
+    num_bins: 720
+    angle_min: -3.14159
+    angle_max: 3.14159
+    range_min: 0.05
+    range_max: 12.0

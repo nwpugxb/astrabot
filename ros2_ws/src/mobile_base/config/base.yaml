@@ -3,12 +3,28 @@ arduino_base:
     serial_port: "/dev/ttyACM0"
     baud_rate: 115200
     wheel_diameter_m: 0.0646
-    counts_per_rev: 565.0
+    counts_per_rev: 564.0
     wheel_separation_m: 0.208
     odom_frame: "odom"
     base_frame: "base_footprint"
     publish_tf: true
     cmd_timeout_s: 0.5
+    # Velocity interface (cmd_vel -> firmware `w R L`, unit: counts/100ms).
+    # max_wheel_counts must match firmware TARGET_MAX (80 ~= 0.287 m/s per wheel).
+    # wheel_deadband_counts must match firmware TARGET_DEADBAND (10 ~= 0.036 m/s).
+    max_wheel_counts: 80.0
+    wheel_deadband_counts: 10.0
+    auto_clear_fault: true
+    fault_clear_interval_s: 1.0
+    default_telemetry_dt_s: 0.1
+    min_telemetry_dt_s: 0.02
+    max_telemetry_dt_s: 0.25
+    odom_pose_cov_lin_straight: 0.02
+    odom_pose_cov_yaw_straight: 0.05
+    odom_pose_cov_lin_turn: 0.05
+    odom_pose_cov_yaw_turn: 0.5
+    odom_pose_cov_yaw_turn_onset: 1.5
+    turn_onset_count_diff: 2.0
     default_speed: 35.0
     max_linear_speed: 0.25
     max_angular_speed: 0.8

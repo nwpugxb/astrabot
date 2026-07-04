@@ -1,0 +1,201 @@
+<?xml version="1.0"?>
+<!-- Gazebo Sim extensions for indoor_robot: ros2_control diff-drive + lidar + RGBD + IMU + ToF. -->
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="indoor_robot">
+
+  <xacro:arg name="controllers_file" default=""/>
+  <xacro:arg name="robot_urdf" default=""/>
+  <!-- Unique node name avoids clashes with stale robot_state_publisher processes. -->
+  <xacro:arg name="robot_param_node" default="indoor_robot_rsp"/>
+
+  <xacro:include filename="$(arg robot_urdf)"/>
+
+  <gazebo reference="base_link">
+    <mu1>0.8</mu1>
+    <mu2>0.8</mu2>
+  </gazebo>
+
+  <gazebo reference="left_wheel">
+    <mu1>1.0</mu1>
+    <mu2>1.0</mu2>
+  </gazebo>
+  <gazebo reference="right_wheel">
+    <mu1>1.0</mu1>
+    <mu2>1.0</mu2>
+  </gazebo>
+
+  <!-- ros2_control diff drive (Fortress / ign gazebo uses ign_* plugin names). -->
+  <ros2_control name="GazeboSimSystem" type="system">
+    <hardware>
+      <plugin>ign_ros2_control/IgnitionSystem</plugin>
+    </hardware>
+    <joint name="left_wheel_joint">
+      <command_interface name="velocity">
+        <param name="min">-20</param>
+        <param name="max">20</param>
+      </command_interface>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+    <joint name="right_wheel_joint">
+      <command_interface name="velocity">
+        <param name="min">-20</param>
+        <param name="max">20</param>
+      </command_interface>
+      <state_interface name="position"/>
+      <state_interface name="velocity"/>
+    </joint>
+  </ros2_control>
+
+  <gazebo>
+    <plugin filename="ign_ros2_control-system" name="ign_ros2_control::IgnitionROS2ControlPlugin">
+      <robot_param>robot_description</robot_param>
+      <robot_param_node>$(arg robot_param_node)</robot_param_node>
+      <parameters>$(arg controllers_file)</parameters>
+      <controller_manager_name>controller_manager</controller_manager_name>
+    </plugin>
+  </gazebo>
+
+  <!-- A1-like 2D lidar (Fortress requires gpu_lidar + headless-rendering). -->
+  <gazebo reference="laser">
+    <sensor name="lidar" type="gpu_lidar">
+      <topic>scan</topic>
+      <update_rate>15</update_rate>
+      <lidar>
+        <scan>
+          <horizontal>
+            <samples>720</samples>
+            <resolution>1</resolution>
+            <min_angle>-3.14159265</min_angle>
+            <max_angle>3.14159265</max_angle>
+          </horizontal>
+          <vertical>
+            <samples>1</samples>
+            <resolution>1</resolution>
+            <min_angle>0</min_angle>
+            <max_angle>0</max_angle>
+          </vertical>
+        </scan>
+        <range>
+          <min>0.35</min>
+          <max>12.0</max>
+          <resolution>0.01</resolution>
+        </range>
+      </lidar>
+      <always_on>true</always_on>
+      <visualize>false</visualize>
+    </sensor>
+  </gazebo>
+
+  <!-- Astra Pro-like RGB-D (optical frame: z forward). -->
+  <gazebo reference="camera_depth_optical_frame">
+    <sensor name="rgbd_camera" type="rgbd_camera">
+      <topic>camera</topic>
+      <update_rate>10</update_rate>
+      <camera name="camera">
+        <horizontal_fov>1.0471975512</horizontal_fov>
+        <image>
+          <width>640</width>
+          <height>480</height>
+          <format>R8G8B8</format>
+        </image>
+        <clip>
+          <near>0.35</near>
+          <far>8.0</far>
+        </clip>
+      </camera>
+      <always_on>true</always_on>
+      <visualize>false</visualize>
+    </sensor>
+  </gazebo>
+
+  <!-- IMU (GY-9250 placeholder). -->
+  <gazebo reference="imu_link">
+    <sensor name="imu" type="imu">
+      <topic>imu</topic>
+      <update_rate>100</update_rate>
+      <always_on>true</always_on>
+      <visualize>false</visualize>
+    </sensor>
+  </gazebo>
+
+  <!-- VL53L1X-like narrow ToF (gpu_lidar single-beam -> Range via bridge node). -->
+  <gazebo reference="tof_front_link">
+    <sensor name="tof_front" type="gpu_lidar">
+      <topic>tof_front</topic>
+      <update_rate>15</update_rate>
+      <lidar>
+        <scan>
+          <horizontal>
+            <samples>1</samples>
+            <min_angle>0</min_angle>
+            <max_angle>0</max_angle>
+          </horizontal>
+          <vertical>
+            <samples>1</samples>
+            <resolution>1</resolution>
+            <min_angle>0</min_angle>
+            <max_angle>0</max_angle>
+          </vertical>
+        </scan>
+        <range>
+          <min>0.04</min>
+          <max>4.0</max>
+        </range>
+      </lidar>
+      <always_on>true</always_on>
+    </sensor>
+  </gazebo>
+  <gazebo reference="tof_left_link">
+    <sensor name="tof_left" type="gpu_lidar">
+      <topic>tof_left</topic>
+      <update_rate>15</update_rate>
+      <lidar>
+        <scan>
+          <horizontal>
+            <samples>1</samples>
+            <min_angle>0</min_angle>
+            <max_angle>0</max_angle>
+          </horizontal>
+          <vertical>
+            <samples>1</samples>
+            <resolution>1</resolution>
+            <min_angle>0</min_angle>
+            <max_angle>0</max_angle>
+          </vertical>
+        </scan>
+        <range>
+          <min>0.04</min>
+          <max>4.0</max>
+        </range>
+      </lidar>
+      <always_on>true</always_on>
+    </sensor>
+  </gazebo>
+  <gazebo reference="tof_right_link">
+    <sensor name="tof_right" type="gpu_lidar">
+      <topic>tof_right</topic>
+      <update_rate>15</update_rate>
+      <lidar>
+        <scan>
+          <horizontal>
+            <samples>1</samples>
+            <min_angle>0</min_angle>
+            <max_angle>0</max_angle>
+          </horizontal>
+          <vertical>
+            <samples>1</samples>
+            <resolution>1</resolution>
+            <min_angle>0</min_angle>
+            <max_angle>0</max_angle>
+          </vertical>
+        </scan>
+        <range>
+          <min>0.04</min>
+          <max>4.0</max>
+        </range>
+      </lidar>
+      <always_on>true</always_on>
+    </sensor>
+  </gazebo>
+
+</robot>

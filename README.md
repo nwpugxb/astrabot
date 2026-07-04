@@ -1,3 +1,6 @@
+ls -la /dev/ttyUSB* /dev/ttyACM*
+
+
 # Orbbec Astra Pro — ROS2 Handheld 3D Mapping
 
 手持慢速移动 Astra Pro，用 **RTAB-Map** 构建 3D 点云地图。
