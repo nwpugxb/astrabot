@@ -58,7 +58,7 @@ static const float KP_LEFT  = 2.5f;
 
 static const int   PWM_MIN = 0;
 static const int   PWM_MAX = 255;
-static const float PWM_STEP_LIMIT = 255.0f;  // 15.0f old from cursor
+static const float PWM_STEP_LIMIT = 255.0f;  // no PWM ramp; smoothing is host-side only
 
 static const int   STALL_PWM_THRESHOLD = 90;   // was 240 (L298N); keep above FF table when tuning
 static const float STALL_SPEED_RATIO   = 0.7f;

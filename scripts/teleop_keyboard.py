@@ -532,19 +532,34 @@ class CmdVelTeleopBridge(Node):
         super().__init__("teleop_cmd_vel")
         self._pub = self.create_publisher(Twist, cmd_vel_topic, CMD_VEL_QOS)
         self._last_twist = Twist()
+        self._last_published = Twist()
         self._last_pub_time = 0.0
         self._pub_interval = CMD_VEL_PUB_INTERVAL
         self.get_logger().info(
-            f"evdev teleop -> {cmd_vel_topic} (hold WASD, {CMD_VEL_PUBLISH_HZ:.0f} Hz, stop immediate)"
+            f"evdev teleop -> {cmd_vel_topic} (direct pass-through, "
+            f"hold repeat {CMD_VEL_PUBLISH_HZ:.0f} Hz, stop/reversal immediate)"
+        )
+
+    @staticmethod
+    def _twist_equal(a: Twist, b: Twist, eps: float = 1e-6) -> bool:
+        return (
+            abs(a.linear.x - b.linear.x) < eps
+            and abs(a.angular.z - b.angular.z) < eps
         )
 
     def send_cmd(self, cmd: str) -> None:
         motion, speed = _parse_motion_cmd(cmd)
         twist = _motion_speed_to_twist(motion, speed)
         now = time.time()
-        if _twist_is_stop(twist) or (now - self._last_pub_time) >= self._pub_interval:
+        # No smoothing: any new target (stop, reversal, speed change) publishes immediately.
+        # Rate limit applies only to identical repeat publishes while key is held.
+        changed = not self._twist_equal(twist, self._last_published)
+        if changed or (now - self._last_pub_time) >= self._pub_interval:
             self._pub.publish(twist)
             self._last_pub_time = now
+            self._last_published = Twist()
+            self._last_published.linear.x = twist.linear.x
+            self._last_published.angular.z = twist.angular.z
         self._last_twist = twist
 
     def drain_feedback(self) -> Optional[str]:

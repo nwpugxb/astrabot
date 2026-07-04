@@ -171,8 +171,8 @@ static void updateOneWheel(
   if (targetSigned > 0) direction = 1;
   else if (targetSigned < 0) direction = -1;
 
-  if (targetAbs <= 0) {
-    pwmOutput = 0;
+  if (targetAbs <= 0.0f) {
+    pwmOutput = 0.0f;
     stallCounter = 0;
     if (isRight) setRightMotor(0, 0);
     else setLeftMotor(0, 0);
@@ -422,6 +422,10 @@ static void cmd_vel_cb(const void *msgin) {
   g.cmd_w = m->angular.z;
   g.cmd_stamp_ms = millis();
   portEXIT_CRITICAL(&stateMux);
+
+  if (fabsf(m->linear.x) < 1e-6f && fabsf(m->angular.z) < 1e-6f) {
+    stopMotors();
+  }
 }
 
 static void ff_pwm_cb(const void *msgin) {
@@ -578,6 +582,7 @@ static void destroy_entities() {
 static void microRosTask(void *arg) {
   (void)arg;
   init_messages();
+  uint32_t lastPingMs = 0;
   for (;;) {
     switch (agent_state) {
       case WAITING_AGENT:
@@ -590,17 +595,23 @@ static void microRosTask(void *arg) {
           Serial.println("micro-ROS agent connected");
 #endif
           setMotorsEnabled(true);
+          lastPingMs = millis();
         } else if (agent_state == WAITING_AGENT) {
           destroy_entities();
         }
         break;
-      case AGENT_CONNECTED:
-        if (RMW_RET_OK != rmw_uros_ping_agent(200, 3)) {
-          agent_state = AGENT_DISCONNECTED;
-        } else {
-          rclc_executor_spin_some(&executor, RCL_MS_TO_NS(1));
+      case AGENT_CONNECTED: {
+        uint32_t nowMs = millis();
+        if (nowMs - lastPingMs >= 500) {
+          lastPingMs = nowMs;
+          if (RMW_RET_OK != rmw_uros_ping_agent(100, 1)) {
+            agent_state = AGENT_DISCONNECTED;
+            break;
+          }
         }
-        break;
+        rclc_executor_spin_some(&executor, RCL_MS_TO_NS(1));
+        continue;
+      }
       case AGENT_DISCONNECTED:
         setMotorsEnabled(false);
         destroy_entities();
