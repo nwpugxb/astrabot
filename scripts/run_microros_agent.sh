@@ -4,7 +4,7 @@
 set -eo pipefail
 
 DEV="${1:-/dev/ttyUSB0}"
-BAUD="${2:-115200}"
+BAUD="${2:-921600}"
 
 if [[ ! -e "$DEV" ]]; then
   echo "Serial device not found: $DEV"

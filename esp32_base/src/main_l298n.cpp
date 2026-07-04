@@ -32,6 +32,7 @@
 #include <std_msgs/msg/u_int8_multi_array.h>
 
 #include "config_l298n.h"
+#include "microros_qos.h"
 #include "microros_transport_setup.h"
 
 // ======================================================================
@@ -516,24 +517,30 @@ static bool create_entities() {
   RCCHECK(rclc_support_init(&support, 0, NULL, &allocator));
   RCCHECK(rclc_node_init_default(&node, "esp32_l298n_base", "", &support));
 
-  RCCHECK(rclc_publisher_init_default(
-      &pub_odom, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(nav_msgs, msg, Odometry), "odom"));
-  RCCHECK(rclc_publisher_init_default(
-      &pub_imu, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Imu), "imu/data_raw"));
-  RCCHECK(rclc_publisher_init_default(
-      &pub_tof_f, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Range), "tof_front"));
-  RCCHECK(rclc_publisher_init_default(
-      &pub_tof_l, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Range), "tof_left"));
-  RCCHECK(rclc_publisher_init_default(
-      &pub_tof_r, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Range), "tof_right"));
-  RCCHECK(rclc_publisher_init_default(
-      &pub_tof_status, &node,
-      ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, UInt8MultiArray), "tof_status"));
+  static rmw_qos_profile_t qos = microros_qos_depth1();
 
-  RCCHECK(rclc_subscription_init_default(
-      &sub_cmd, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist), "cmd_vel"));
-  RCCHECK(rclc_subscription_init_default(
-      &sub_ff, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32), "motor_ff_pwm"));
+  RCCHECK(rclc_publisher_init(
+      &pub_odom, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(nav_msgs, msg, Odometry), "odom", &qos));
+  RCCHECK(rclc_publisher_init(
+      &pub_imu, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Imu), "imu/data_raw",
+      &qos));
+  RCCHECK(rclc_publisher_init(
+      &pub_tof_f, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Range), "tof_front",
+      &qos));
+  RCCHECK(rclc_publisher_init(
+      &pub_tof_l, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Range), "tof_left", &qos));
+  RCCHECK(rclc_publisher_init(
+      &pub_tof_r, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Range), "tof_right",
+      &qos));
+  RCCHECK(rclc_publisher_init(
+      &pub_tof_status, &node,
+      ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, UInt8MultiArray), "tof_status", &qos));
+
+  RCCHECK(rclc_subscription_init(
+      &sub_cmd, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist), "cmd_vel", &qos));
+  RCCHECK(rclc_subscription_init(
+      &sub_ff, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32), "motor_ff_pwm",
+      &qos));
 
   const unsigned int timer_period = 1000 / PUB_IMU_HZ;
   RCCHECK(rclc_timer_init_default(&timer, &support, RCL_MS_TO_NS(timer_period), timer_cb));
@@ -565,6 +572,9 @@ static void destroy_entities() {
   rclc_support_fini(&support);
 }
 
+// ======================================================================
+// Core 0: micro-ROS (+ WiFi stack on WiFi builds)
+// ======================================================================
 static void microRosTask(void *arg) {
   (void)arg;
   init_messages();
@@ -602,7 +612,7 @@ static void microRosTask(void *arg) {
 }
 
 // ======================================================================
-// Core 0: motor PID + encoders + IMU + odom
+// Core 1: motor PID + encoders + IMU + odom
 // ======================================================================
 static void controlTask(void *arg) {
   (void)arg;
@@ -611,6 +621,7 @@ static void controlTask(void *arg) {
   uint32_t lastControlMs = millis();
 
   for (;;) {
+
     uint32_t now = millis();
     if (now - lastControlMs >= CONTROL_INTERVAL_MS) {
       float dt = (now - lastControlMs) / 1000.0f;
@@ -711,8 +722,8 @@ void setup() {
   mpu.setup(0x68, MPU9250Setting(), Wire);
   setupTofTrio();
 
-  xTaskCreatePinnedToCore(controlTask, "control", 4096, NULL, 5, NULL, 0);
-  xTaskCreatePinnedToCore(microRosTask, "microros", 8192, NULL, 5, NULL, 1);
+  xTaskCreatePinnedToCore(controlTask, "control", 4096, NULL, 5, NULL, 1);
+  xTaskCreatePinnedToCore(microRosTask, "microros", 8192, NULL, 5, NULL, 0);
 }
 
 void loop() {

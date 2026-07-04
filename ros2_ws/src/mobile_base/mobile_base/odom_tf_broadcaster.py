@@ -6,6 +6,7 @@ from __future__ import annotations
 import rclpy
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy
 from tf2_ros import TransformBroadcaster
 
 
@@ -15,7 +16,8 @@ class OdomTfBroadcaster(Node):
         self.declare_parameter("odom_topic", "/odom")
         topic = str(self.get_parameter("odom_topic").value)
         self._tf = TransformBroadcaster(self)
-        self.create_subscription(Odometry, topic, self._on_odom, 10)
+        odom_qos = QoSProfile(depth=1, reliability=QoSReliabilityPolicy.RELIABLE)
+        self.create_subscription(Odometry, topic, self._on_odom, odom_qos)
         self.get_logger().info(f"Broadcasting TF from {topic}")
 
     def _on_odom(self, msg: Odometry) -> None:

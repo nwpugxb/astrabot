@@ -15,6 +15,7 @@ import tkinter as tk
 import rclpy
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
+from indoor_bringup.microros_qos import MICROROS_QOS
 from std_msgs.msg import Float32
 
 WHEEL_D_M = 0.0646
@@ -106,10 +107,8 @@ class MotorPwmTuneGuiNode(Node):
 
         cmd_topic = str(self.get_parameter("cmd_vel_topic").value)
         ff_topic = str(self.get_parameter("motor_ff_pwm_topic").value)
-        # micro-ROS rclc_subscription_init_default = RELIABLE; must match or no delivery.
-        qos_depth = 10
-        self._pub_cmd = self.create_publisher(Twist, cmd_topic, qos_depth)
-        self._pub_ff = self.create_publisher(Float32, ff_topic, qos_depth)
+        self._pub_cmd = self.create_publisher(Twist, cmd_topic, MICROROS_QOS)
+        self._pub_ff = self.create_publisher(Float32, ff_topic, MICROROS_QOS)
 
         hz = float(self.get_parameter("publish_hz").value)
         self.create_timer(1.0 / hz, self._publish)

@@ -6,7 +6,7 @@ from __future__ import annotations
 import rclpy
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
-from rclpy.qos import qos_profile_sensor_data
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy
 
 
 class OdomCovarianceRepublisher(Node):
@@ -16,8 +16,9 @@ class OdomCovarianceRepublisher(Node):
         self.declare_parameter("output_topic", "/odom")
         in_topic = str(self.get_parameter("input_topic").value)
         out_topic = str(self.get_parameter("output_topic").value)
-        self._pub = self.create_publisher(Odometry, out_topic, 10)
-        self.create_subscription(Odometry, in_topic, self._cb, qos_profile_sensor_data)
+        odom_qos = QoSProfile(depth=1, reliability=QoSReliabilityPolicy.RELIABLE)
+        self._pub = self.create_publisher(Odometry, out_topic, odom_qos)
+        self.create_subscription(Odometry, in_topic, self._cb, odom_qos)
 
     def _cb(self, msg: Odometry) -> None:
         out = Odometry()

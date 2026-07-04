@@ -3,6 +3,10 @@
 #include <Arduino.h>
 #include <micro_ros_platformio.h>
 
+#ifndef MICROROS_SERIAL_BAUD
+#define MICROROS_SERIAL_BAUD 921600
+#endif
+
 #if defined(MICRO_ROS_TRANSPORT_ARDUINO_WIFI)
 #include <WiFi.h>
 #include <WiFiUdp.h>
@@ -51,7 +55,7 @@ static void setup_microros_wifi_udp(char *wifi_ssid, char *wifi_pass, IPAddress 
 // WiFi:   Serial remains free for debug prints.
 inline void init_microros_transport(char *wifi_ssid, char *wifi_pass, const char *agent_ip,
                                     uint16_t agent_port) {
-  Serial.begin(115200);
+  Serial.begin(MICROROS_SERIAL_BAUD);
 #if defined(MICRO_ROS_TRANSPORT_ARDUINO_WIFI)
   IPAddress agent_addr;
   agent_addr.fromString(agent_ip);

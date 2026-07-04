@@ -58,7 +58,7 @@ static const float KP_LEFT  = 2.5f;
 
 static const int   PWM_MIN = 0;
 static const int   PWM_MAX = 255;
-static const float PWM_STEP_LIMIT = 15.0f;
+static const float PWM_STEP_LIMIT = 255.0f;  // 15.0f old from cursor
 
 static const int   STALL_PWM_THRESHOLD = 90;   // was 240 (L298N); keep above FF table when tuning
 static const float STALL_SPEED_RATIO   = 0.7f;
@@ -94,6 +94,9 @@ static const int PWM_FF_MAX   = 130;
 // Auto-clear stall latch (only used when STALL_PROTECTION_ENABLE is true).
 static const uint32_t STALL_AUTO_CLEAR_MS = 1000;
 
+// ---------------- micro-ROS serial (USB) ---------------------------------
+#define MICROROS_SERIAL_BAUD 921600
+
 // ---------------- WiFi / micro-ROS agent ---------------------------------
 #define MICROROS_WIFI_SSID  "NETGEAR71"
 #define MICROROS_WIFI_PASS  "melodicdaisy353"
@@ -102,9 +105,9 @@ static const uint16_t AGENT_PORT  = 8888;
 
 // ---------------- ROS / micro-ROS ----------------------------------------
 static const uint32_t CMD_TIMEOUT_MS = 2000;
-static const uint32_t PUB_ODOM_HZ    = 50;
-static const uint32_t PUB_IMU_HZ     = 100;
-static const uint32_t PUB_TOF_HZ     = 10;
+static const uint32_t PUB_ODOM_HZ    = 10; //50;
+static const uint32_t PUB_IMU_HZ     = 10; //100;
+static const uint32_t PUB_TOF_HZ     = 1; //10;
 
 #define FRAME_ODOM  "odom"
 #define FRAME_BASE  "base_footprint"

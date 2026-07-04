@@ -1,11 +1,11 @@
 // ======================================================================
 // ESP32 base firmware (micro-ROS) for the indoor inspection robot.
 //
-// Core 0 (controlTask): real-time. Reads AS5600 wheel encoders -> integrates
+// Core 0 (microRosTask): micro-ROS (+ WiFi on WiFi builds). Publishes /odom,
+//   /imu/data_raw, /tof_front|left|right; subscribes /cmd_vel. Agent (re)connect.
+// Core 1 (controlTask): real-time. Reads AS5600 wheel encoders -> integrates
 //   differential-drive odometry; reads MPU9250 + 3x VL53L1X; converts the
 //   latest /cmd_vel into stepper speeds (D556 step/dir via FastAccelStepper).
-// Core 1 (microRosTask): micro-ROS. Publishes /odom, /imu/data_raw,
-//   /tof_front|left|right; subscribes /cmd_vel. Handles agent (re)connection.
 //
 // Shared state between cores is guarded by a portMUX spinlock.
 // NOTE: serial is owned by the micro-ROS transport -> no Serial.print debugging.
@@ -33,6 +33,7 @@
 #include <geometry_msgs/msg/twist.h>
 
 #include "config.h"
+#include "microros_qos.h"
 #include "microros_transport_setup.h"
 
 // ======================================================================
@@ -170,7 +171,7 @@ static void applyWheelSpeeds(float v, float w) {
 }
 
 // ======================================================================
-// Core 0: real-time control + sensing
+// Core 1: real-time control + sensing
 // ======================================================================
 static void controlTask(void *arg) {
   (void)arg;
@@ -329,19 +330,24 @@ static bool create_entities() {
   RCCHECK(rclc_support_init(&support, 0, NULL, &allocator));
   RCCHECK(rclc_node_init_default(&node, "esp32_base", "", &support));
 
-  RCCHECK(rclc_publisher_init_default(
-      &pub_odom, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(nav_msgs, msg, Odometry), "odom"));
-  RCCHECK(rclc_publisher_init_default(
-      &pub_imu, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Imu), "imu/data_raw"));
-  RCCHECK(rclc_publisher_init_default(
-      &pub_tof_f, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Range), "tof_front"));
-  RCCHECK(rclc_publisher_init_default(
-      &pub_tof_l, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Range), "tof_left"));
-  RCCHECK(rclc_publisher_init_default(
-      &pub_tof_r, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Range), "tof_right"));
+  static rmw_qos_profile_t qos = microros_qos_depth1();
 
-  RCCHECK(rclc_subscription_init_default(
-      &sub_cmd, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist), "cmd_vel"));
+  RCCHECK(rclc_publisher_init(
+      &pub_odom, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(nav_msgs, msg, Odometry), "odom", &qos));
+  RCCHECK(rclc_publisher_init(
+      &pub_imu, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Imu), "imu/data_raw",
+      &qos));
+  RCCHECK(rclc_publisher_init(
+      &pub_tof_f, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Range), "tof_front",
+      &qos));
+  RCCHECK(rclc_publisher_init(
+      &pub_tof_l, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Range), "tof_left", &qos));
+  RCCHECK(rclc_publisher_init(
+      &pub_tof_r, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Range), "tof_right",
+      &qos));
+
+  RCCHECK(rclc_subscription_init(
+      &sub_cmd, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist), "cmd_vel", &qos));
 
   const unsigned int timer_period = 1000 / PUB_IMU_HZ;
   RCCHECK(rclc_timer_init_default(&timer, &support, RCL_MS_TO_NS(timer_period), timer_cb));
@@ -371,7 +377,7 @@ static void destroy_entities() {
 }
 
 // ======================================================================
-// Core 1: micro-ROS connection state machine + spin
+// Core 0: micro-ROS (+ WiFi on WiFi builds)
 // ======================================================================
 static void microRosTask(void *arg) {
   (void)arg;
@@ -442,9 +448,9 @@ void setup() {
     stepL->setAcceleration((uint32_t)STEP_ACCEL_HZ_S);
   }
 
-  // Tasks: control on core 0, micro-ROS on core 1.
-  xTaskCreatePinnedToCore(controlTask, "control", 4096, NULL, 5, NULL, 0);
-  xTaskCreatePinnedToCore(microRosTask, "microros", 8192, NULL, 5, NULL, 1);
+  // Tasks: micro-ROS on core 0, control on core 1.
+  xTaskCreatePinnedToCore(controlTask, "control", 4096, NULL, 5, NULL, 1);
+  xTaskCreatePinnedToCore(microRosTask, "microros", 8192, NULL, 5, NULL, 0);
 }
 
 void loop() {

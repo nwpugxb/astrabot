@@ -7,6 +7,7 @@ import rclpy
 from nav_msgs.msg import Odometry, Path
 from geometry_msgs.msg import PoseStamped
 from rclpy.node import Node
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy
 
 
 class OdomPathNode(Node):
@@ -28,8 +29,9 @@ class OdomPathNode(Node):
         self._last_y = 0.0
         self._have_last = False
 
+        odom_qos = QoSProfile(depth=1, reliability=QoSReliabilityPolicy.RELIABLE)
         self._pub = self.create_publisher(Path, path_topic, 10)
-        self.create_subscription(Odometry, odom_topic, self._on_odom, 10)
+        self.create_subscription(Odometry, odom_topic, self._on_odom, odom_qos)
         self.get_logger().info(f"Publishing {path_topic} from {odom_topic} (frame=odom)")
 
     def _on_odom(self, msg: Odometry) -> None:

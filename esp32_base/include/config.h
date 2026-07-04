@@ -64,14 +64,17 @@ static const float MAX_WHEEL_SPEED_MPS = 0.45f;   // clamp commanded wheel speed
 static const float STEP_ACCEL_HZ_S     = 4000.0f; // stepper accel (steps/s^2)
 
 // ---------------- Loop rates ----------------
-static const uint32_t CONTROL_HZ   = 100;   // odom integration + motor update
-static const uint32_t IMU_HZ       = 100;
-static const uint32_t TOF_HZ       = 30;
-static const uint32_t PUB_ODOM_HZ  = 50;
-static const uint32_t PUB_IMU_HZ   = 100;
-static const uint32_t PUB_TOF_HZ   = 15;
+static const uint32_t CONTROL_HZ   = 20; //100;   // odom integration + motor update
+static const uint32_t IMU_HZ       = 50; //100;
+static const uint32_t TOF_HZ       = 10; //30;
+static const uint32_t PUB_ODOM_HZ  = 20; //50;
+static const uint32_t PUB_IMU_HZ   = 50; //100;
+static const uint32_t PUB_TOF_HZ   = 10; //15;
 
 static const uint32_t CMD_TIMEOUT_MS = 500;   // stop if no /cmd_vel within this
+
+// ---------------- micro-ROS serial (USB) ---------------------------------
+#define MICROROS_SERIAL_BAUD 921600
 
 // ---------------- WiFi / micro-ROS agent ---------------------------------
 #define MICROROS_WIFI_SSID  "NETGEAR71"

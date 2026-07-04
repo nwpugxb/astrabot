@@ -31,12 +31,15 @@ import rclpy
 import serial
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
+from rclpy.qos import QoSProfile
 from std_msgs.msg import String
 
 MIN_SPEED = 30
 MAX_SPEED = 80
-REPEAT_INTERVAL = 0.20
-LOOP_INTERVAL = 0.02
+CMD_VEL_PUBLISH_HZ = 10
+CMD_VEL_QOS_DEPTH = 1
+REPEAT_INTERVAL = 1.0 / CMD_VEL_PUBLISH_HZ
+LOOP_INTERVAL = 0.1 # UI / evdev poll (~50 Hz), not the ROS publish rate
 SERIAL_PORT = "/dev/ttyACM0"
 BAUD_RATE = 115200
 
@@ -515,7 +518,9 @@ class CmdVelTeleopBridge(Node):
 
     def __init__(self, cmd_vel_topic: str = "/cmd_vel") -> None:
         super().__init__("teleop_cmd_vel")
-        self._pub = self.create_publisher(Twist, cmd_vel_topic, 10)
+        self._pub = self.create_publisher(
+            Twist, cmd_vel_topic, QoSProfile(depth=CMD_VEL_QOS_DEPTH)
+        )
         self._last_twist = Twist()
         self.get_logger().info(f"evdev teleop -> {cmd_vel_topic} (hold WASD, release stop)")
 

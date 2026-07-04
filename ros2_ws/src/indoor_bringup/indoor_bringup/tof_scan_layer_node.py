@@ -10,6 +10,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import LaserScan, Range
 import tf2_ros
 
+from indoor_bringup.microros_qos import MICROROS_QOS
 from indoor_bringup.laser_utils import bin_points, scan_from_bins
 
 
@@ -42,7 +43,9 @@ class TofScanLayerNode(Node):
 
         topics = self.get_parameter("topics").value
         for t in topics:
-            self.create_subscription(Range, str(t), lambda m, tp=str(t): self._on_range(m, tp), 10)
+            self.create_subscription(
+                Range, str(t), lambda m, tp=str(t): self._on_range(m, tp), MICROROS_QOS
+            )
 
         self.create_timer(0.1, self._publish_scan)
         self.get_logger().info(f"ToF scan layer -> {out} from {list(topics)}")
