@@ -31,7 +31,8 @@ import rclpy
 import serial
 from geometry_msgs.msg import Twist
 from rclpy.node import Node
-from rclpy.qos import QoSProfile
+from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSProfile, QoSReliabilityPolicy
+
 from std_msgs.msg import String
 
 MIN_SPEED = 30
@@ -50,6 +51,13 @@ COUNTS_PER_REV = 564.0
 M_PER_COUNT = math.pi * WHEEL_D_M / COUNTS_PER_REV
 
 MOTION_PRIORITY = ("f", "b", "l", "r")
+
+CMD_VEL_QOS = QoSProfile(
+    history=QoSHistoryPolicy.KEEP_LAST,
+    depth=CMD_VEL_QOS_DEPTH,
+    reliability=QoSReliabilityPolicy.RELIABLE,
+    durability=QoSDurabilityPolicy.VOLATILE,
+)
 
 
 class HoldTracker(Protocol):
@@ -518,9 +526,7 @@ class CmdVelTeleopBridge(Node):
 
     def __init__(self, cmd_vel_topic: str = "/cmd_vel") -> None:
         super().__init__("teleop_cmd_vel")
-        self._pub = self.create_publisher(
-            Twist, cmd_vel_topic, QoSProfile(depth=CMD_VEL_QOS_DEPTH)
-        )
+        self._pub = self.create_publisher(Twist, cmd_vel_topic, CMD_VEL_QOS)
         self._last_twist = Twist()
         self.get_logger().info(f"evdev teleop -> {cmd_vel_topic} (hold WASD, release stop)")
 

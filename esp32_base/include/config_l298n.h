@@ -105,9 +105,9 @@ static const uint16_t AGENT_PORT  = 8888;
 
 // ---------------- ROS / micro-ROS ----------------------------------------
 static const uint32_t CMD_TIMEOUT_MS = 2000;
-static const uint32_t PUB_ODOM_HZ    = 10; //50;
-static const uint32_t PUB_IMU_HZ     = 10; //100;
-static const uint32_t PUB_TOF_HZ     = 1; //10;
+static const uint32_t PUB_ODOM_HZ    = 20; //50;
+static const uint32_t PUB_IMU_HZ     = 20; //100;
+static const uint32_t PUB_TOF_HZ     = 5; //10;
 
 #define FRAME_ODOM  "odom"
 #define FRAME_BASE  "base_footprint"

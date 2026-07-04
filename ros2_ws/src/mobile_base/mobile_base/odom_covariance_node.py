@@ -6,7 +6,15 @@ from __future__ import annotations
 import rclpy
 from nav_msgs.msg import Odometry
 from rclpy.node import Node
-from rclpy.qos import QoSProfile, QoSReliabilityPolicy
+from rclpy.qos import QoSDurabilityPolicy, QoSHistoryPolicy, QoSProfile, QoSReliabilityPolicy
+
+# Match ESP32 microros_qos_best_effort_depth1() for /odom.
+_ODOM_QOS = QoSProfile(
+    history=QoSHistoryPolicy.KEEP_LAST,
+    depth=1,
+    reliability=QoSReliabilityPolicy.BEST_EFFORT,
+    durability=QoSDurabilityPolicy.VOLATILE,
+)
 
 
 class OdomCovarianceRepublisher(Node):
@@ -16,9 +24,8 @@ class OdomCovarianceRepublisher(Node):
         self.declare_parameter("output_topic", "/odom")
         in_topic = str(self.get_parameter("input_topic").value)
         out_topic = str(self.get_parameter("output_topic").value)
-        odom_qos = QoSProfile(depth=1, reliability=QoSReliabilityPolicy.RELIABLE)
-        self._pub = self.create_publisher(Odometry, out_topic, odom_qos)
-        self.create_subscription(Odometry, in_topic, self._cb, odom_qos)
+        self._pub = self.create_publisher(Odometry, out_topic, _ODOM_QOS)
+        self.create_subscription(Odometry, in_topic, self._cb, _ODOM_QOS)
 
     def _cb(self, msg: Odometry) -> None:
         out = Odometry()

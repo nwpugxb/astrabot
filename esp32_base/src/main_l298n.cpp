@@ -517,30 +517,31 @@ static bool create_entities() {
   RCCHECK(rclc_support_init(&support, 0, NULL, &allocator));
   RCCHECK(rclc_node_init_default(&node, "esp32_l298n_base", "", &support));
 
-  static rmw_qos_profile_t qos = microros_qos_depth1();
+  static rmw_qos_profile_t qos_reliable = microros_qos_reliable_depth1();
 
-  RCCHECK(rclc_publisher_init(
-      &pub_odom, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(nav_msgs, msg, Odometry), "odom", &qos));
-  RCCHECK(rclc_publisher_init(
-      &pub_imu, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Imu), "imu/data_raw",
-      &qos));
+  RCCHECK(microros_publisher_init_best_effort_depth1(
+      &pub_odom, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(nav_msgs, msg, Odometry), "odom"));
+  RCCHECK(microros_publisher_init_best_effort_depth1(
+      &pub_imu, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Imu), "imu/data_raw"));
   RCCHECK(rclc_publisher_init(
       &pub_tof_f, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Range), "tof_front",
-      &qos));
+      &qos_reliable));
   RCCHECK(rclc_publisher_init(
-      &pub_tof_l, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Range), "tof_left", &qos));
+      &pub_tof_l, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Range), "tof_left",
+      &qos_reliable));
   RCCHECK(rclc_publisher_init(
       &pub_tof_r, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(sensor_msgs, msg, Range), "tof_right",
-      &qos));
+      &qos_reliable));
   RCCHECK(rclc_publisher_init(
       &pub_tof_status, &node,
-      ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, UInt8MultiArray), "tof_status", &qos));
+      ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, UInt8MultiArray), "tof_status", &qos_reliable));
 
   RCCHECK(rclc_subscription_init(
-      &sub_cmd, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist), "cmd_vel", &qos));
+      &sub_cmd, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist), "cmd_vel",
+      &qos_reliable));
   RCCHECK(rclc_subscription_init(
       &sub_ff, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32), "motor_ff_pwm",
-      &qos));
+      &qos_reliable));
 
   const unsigned int timer_period = 1000 / PUB_IMU_HZ;
   RCCHECK(rclc_timer_init_default(&timer, &support, RCL_MS_TO_NS(timer_period), timer_cb));
@@ -699,6 +700,13 @@ static void controlTask(void *arg) {
 }
 
 void setup() {
+  // === 必须加在 Serial.begin 之前！ ===
+  Serial.setRxBufferSize(2048); // 强行扩容接收缓冲区至 2048 字节
+  Serial.setTxBufferSize(2048); // 强行扩容发送缓冲区至 2048 字节
+  Serial.begin(921600);        // 保持 921600 高速波特率
+  
+  set_microros_serial_transports(Serial);
+
   char wifi_ssid[] = MICROROS_WIFI_SSID;
   char wifi_pass[] = MICROROS_WIFI_PASS;
   init_microros_transport(wifi_ssid, wifi_pass, AGENT_IP, AGENT_PORT);
