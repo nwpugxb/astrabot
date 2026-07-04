@@ -536,9 +536,8 @@ static bool create_entities() {
       &pub_tof_status, &node,
       ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, UInt8MultiArray), "tof_status", &qos_reliable));
 
-  RCCHECK(rclc_subscription_init(
-      &sub_cmd, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist), "cmd_vel",
-      &qos_reliable));
+  RCCHECK(rclc_subscription_init_best_effort(
+      &sub_cmd, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, Twist), "cmd_vel"));
   RCCHECK(rclc_subscription_init(
       &sub_ff, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(std_msgs, msg, Float32), "motor_ff_pwm",
       &qos_reliable));
@@ -599,7 +598,7 @@ static void microRosTask(void *arg) {
         if (RMW_RET_OK != rmw_uros_ping_agent(200, 3)) {
           agent_state = AGENT_DISCONNECTED;
         } else {
-          rclc_executor_spin_some(&executor, RCL_MS_TO_NS(5));
+          rclc_executor_spin_some(&executor, RCL_MS_TO_NS(1));
         }
         break;
       case AGENT_DISCONNECTED:
@@ -608,7 +607,7 @@ static void microRosTask(void *arg) {
         agent_state = WAITING_AGENT;
         break;
     }
-    vTaskDelay(pdMS_TO_TICKS(2));
+    vTaskDelay(1);
   }
 }
 

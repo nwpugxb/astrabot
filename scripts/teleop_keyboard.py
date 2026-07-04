@@ -38,9 +38,10 @@ from std_msgs.msg import String
 MIN_SPEED = 30
 MAX_SPEED = 80
 CMD_VEL_PUBLISH_HZ = 10
+CMD_VEL_PUB_INTERVAL = 1.0 / CMD_VEL_PUBLISH_HZ  # 10 Hz rate gate for /cmd_vel
 CMD_VEL_QOS_DEPTH = 1
-REPEAT_INTERVAL = 1.0 / CMD_VEL_PUBLISH_HZ
-LOOP_INTERVAL = 0.1 # UI / evdev poll (~50 Hz), not the ROS publish rate
+REPEAT_INTERVAL = CMD_VEL_PUB_INTERVAL
+LOOP_INTERVAL = 0.02  # UI / evdev poll (~50 Hz); publish gated in CmdVelTeleopBridge
 SERIAL_PORT = "/dev/ttyACM0"
 BAUD_RATE = 115200
 
@@ -55,10 +56,13 @@ MOTION_PRIORITY = ("f", "b", "l", "r")
 CMD_VEL_QOS = QoSProfile(
     history=QoSHistoryPolicy.KEEP_LAST,
     depth=CMD_VEL_QOS_DEPTH,
-    reliability=QoSReliabilityPolicy.RELIABLE,
+    reliability=QoSReliabilityPolicy.BEST_EFFORT,
     durability=QoSDurabilityPolicy.VOLATILE,
 )
 
+
+def _twist_is_stop(twist: Twist) -> bool:
+    return abs(twist.linear.x) < 1e-6 and abs(twist.angular.z) < 1e-6
 
 class HoldTracker(Protocol):
     def get_motion(self) -> str: ...
@@ -528,12 +532,19 @@ class CmdVelTeleopBridge(Node):
         super().__init__("teleop_cmd_vel")
         self._pub = self.create_publisher(Twist, cmd_vel_topic, CMD_VEL_QOS)
         self._last_twist = Twist()
-        self.get_logger().info(f"evdev teleop -> {cmd_vel_topic} (hold WASD, release stop)")
+        self._last_pub_time = 0.0
+        self._pub_interval = CMD_VEL_PUB_INTERVAL
+        self.get_logger().info(
+            f"evdev teleop -> {cmd_vel_topic} (hold WASD, {CMD_VEL_PUBLISH_HZ:.0f} Hz, stop immediate)"
+        )
 
     def send_cmd(self, cmd: str) -> None:
         motion, speed = _parse_motion_cmd(cmd)
         twist = _motion_speed_to_twist(motion, speed)
-        self._pub.publish(twist)
+        now = time.time()
+        if _twist_is_stop(twist) or (now - self._last_pub_time) >= self._pub_interval:
+            self._pub.publish(twist)
+            self._last_pub_time = now
         self._last_twist = twist
 
     def drain_feedback(self) -> Optional[str]:
