@@ -2,6 +2,9 @@
 # Deck robot PWM feedforward tune GUI — same pattern as run_sim_teleop.sh.
 # Hold WASD / mouse buttons to move; release to stop. Up/Down = speed, [ ] = PWM.
 #
+# Do NOT run together with ./scripts/deck_teleop.sh — both publish /cmd_vel (20 Hz).
+# Close this window before normal teleop, or wheels will jerk (stop/go fighting).
+#
 # Prerequisites (USB serial firmware — default esp32dev_l298n env):
 #   Terminal 1: scripts/run_microros_agent.sh /dev/ttyUSB0
 #   Flash:      cd esp32_base && pio run -e esp32dev_l298n -t upload

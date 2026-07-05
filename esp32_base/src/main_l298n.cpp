@@ -113,6 +113,17 @@ static float getBasePWM(float targetAbs) {
   return (float)PWM_FF_MAX;
 }
 
+static void setupMotorPwm() {
+  ledcSetup(0, MOTOR_PWM_FREQ_HZ, MOTOR_PWM_BITS);
+  ledcSetup(1, MOTOR_PWM_FREQ_HZ, MOTOR_PWM_BITS);
+  ledcSetup(2, MOTOR_PWM_FREQ_HZ, MOTOR_PWM_BITS);
+  ledcSetup(3, MOTOR_PWM_FREQ_HZ, MOTOR_PWM_BITS);
+  ledcAttachPin(PIN_R_IN1, 0);
+  ledcAttachPin(PIN_R_IN2, 1);
+  ledcAttachPin(PIN_L_IN1, 2);
+  ledcAttachPin(PIN_L_IN2, 3);
+}
+
 // DRV8871 IN1/IN2: PWM on active leg, other leg LOW (3.3V logic OK).
 static void driveDrv8871(int pinIn1, int pinIn2, int pwm, int direction) {
   pwm = constrain(pwm, 0, 255);
@@ -165,10 +176,8 @@ static void setTargetsFromCmdVel(float v, float w) {
   targetLeft  = clampTarget(mpsToCountsPer100ms(vL));
 }
 
-// Apply feedforward PWM immediately when /cmd_vel arrives (don't wait for controlTask).
-static void kickMotorsFromCmdVel(float v, float w) {
-  setTargetsFromCmdVel(v, w);
-
+// Immediate feedforward kick — PWM only; caller must set targets first.
+static void kickMotorsPwm() {
   auto kickOne = [](float target, float &pwm, bool isRight) {
     float absT = fabsf(target);
     if (absT <= 0.0f) {
@@ -187,6 +196,15 @@ static void kickMotorsFromCmdVel(float v, float w) {
 
   kickOne(targetRight, pwmRight, true);
   kickOne(targetLeft, pwmLeft, false);
+}
+
+static bool cmdVelNeedsKick(float v, float w, float lastV, float lastW) {
+  bool moving = fabsf(v) >= 1e-6f || fabsf(w) >= 1e-6f;
+  bool wasMoving = fabsf(lastV) >= 1e-6f || fabsf(lastW) >= 1e-6f;
+  if (!moving) return false;
+  if (!wasMoving) return true;
+  if (v * lastV < 0.0f || w * lastW < 0.0f) return true;
+  return false;
 }
 
 static void updateOneWheel(
@@ -213,19 +231,21 @@ static void updateOneWheel(
   }
 
   float basePWM = getBasePWM(targetAbs);
-  float error = targetAbs - actualCount;
+  float intervalScale = (float)CONTROL_INTERVAL_MS / 100.0f;
+  float targetThisInterval = targetAbs * intervalScale;
+  float error = targetThisInterval - actualCount;
+  if (fabsf(error) < 1.0f) error = 0.0f;
   float targetPWM = OPEN_LOOP_MOTOR ? basePWM : (basePWM + Kp * error);
   targetPWM = constrain(targetPWM, (float)PWM_MIN, (float)PWM_MAX);
 
-  float diff = targetPWM - pwmOutput;
-  if (diff > PWM_STEP_LIMIT) diff = PWM_STEP_LIMIT;
-  if (diff < -PWM_STEP_LIMIT) diff = -PWM_STEP_LIMIT;
-
-  pwmOutput += diff;
-  pwmOutput = constrain(pwmOutput, (float)PWM_MIN, (float)PWM_MAX);
-
-  if (targetAbs > 0.0f && pwmOutput < (float)PWM_START_FLOOR) {
-    pwmOutput = (float)PWM_START_FLOOR;
+  if (OPEN_LOOP_MOTOR) {
+    pwmOutput = targetPWM;
+  } else {
+    float diff = targetPWM - pwmOutput;
+    if (diff > PWM_STEP_LIMIT) diff = PWM_STEP_LIMIT;
+    if (diff < -PWM_STEP_LIMIT) diff = -PWM_STEP_LIMIT;
+    pwmOutput += diff;
+    pwmOutput = constrain(pwmOutput, (float)PWM_MIN, (float)PWM_MAX);
   }
 
   if (isRight) setRightMotor((int)pwmOutput, direction);
@@ -233,7 +253,7 @@ static void updateOneWheel(
 
 #if STALL_PROTECTION_ENABLE
   if (pwmOutput > STALL_PWM_THRESHOLD &&
-      actualCount < targetAbs * STALL_SPEED_RATIO) {
+      actualCount < targetThisInterval * STALL_SPEED_RATIO) {
     stallCounter++;
   } else {
     stallCounter = 0;
@@ -447,11 +467,15 @@ static void integrateOdom(
   g.vyaw = (dt > 0) ? dyaw / dt : 0.0f;
 }
 
+static float g_lastKickV = 0.0f;
+static float g_lastKickW = 0.0f;
+
 static void cmd_vel_cb(const void *msgin) {
   const geometry_msgs__msg__Twist *m = (const geometry_msgs__msg__Twist *)msgin;
   float v = m->linear.x;
   float w = m->angular.z;
   bool motors_on;
+  bool is_stop = fabsf(v) < 1e-6f && fabsf(w) < 1e-6f;
 
   portENTER_CRITICAL(&stateMux);
   g.cmd_v = v;
@@ -461,10 +485,17 @@ static void cmd_vel_cb(const void *msgin) {
   portEXIT_CRITICAL(&stateMux);
 
   portENTER_CRITICAL(&motorMux);
-  if (fabsf(v) < 1e-6f && fabsf(w) < 1e-6f) {
+  if (is_stop) {
     stopMotors();
+    g_lastKickV = 0.0f;
+    g_lastKickW = 0.0f;
   } else if (motors_on) {
-    kickMotorsFromCmdVel(v, w);
+    if (cmdVelNeedsKick(v, w, g_lastKickV, g_lastKickW)) {
+      setTargetsFromCmdVel(v, w);
+      kickMotorsPwm();
+    }
+    g_lastKickV = v;
+    g_lastKickW = w;
   }
   portEXIT_CRITICAL(&motorMux);
 }
@@ -676,6 +707,7 @@ static void controlTask(void *arg) {
   long lastRightEnc = readEncRight();
   long lastLeftEnc  = readEncLeft();
   uint32_t lastControlMs = millis();
+  uint32_t lastImuMs = millis();
 
   for (;;) {
 
@@ -711,8 +743,8 @@ static void controlTask(void *arg) {
         stopMotors();
       } else {
         if (cmd_ts != 0 && (now - cmd_ts) > CMD_TIMEOUT_MS) {
-          cmd_v = 0;
-          cmd_w = 0;
+          cmd_v = 0.0f;
+          cmd_w = 0.0f;
         }
         setTargetsFromCmdVel(cmd_v, cmd_w);
         odomTargetR = targetRight;
@@ -743,15 +775,18 @@ static void controlTask(void *arg) {
       portEXIT_CRITICAL(&stateMux);
     }
 
-    mpu.update_accel_gyro();
-    portENTER_CRITICAL(&stateMux);
-    g.ax = mpu.getAccX() * 9.80665f;
-    g.ay = mpu.getAccY() * 9.80665f;
-    g.az = mpu.getAccZ() * 9.80665f;
-    g.gx = mpu.getGyroX() * (float)M_PI / 180.0f;
-    g.gy = mpu.getGyroY() * (float)M_PI / 180.0f;
-    g.gz = mpu.getGyroZ() * (float)M_PI / 180.0f;
-    portEXIT_CRITICAL(&stateMux);
+    if (now - lastImuMs >= 50) {
+      lastImuMs = now;
+      mpu.update_accel_gyro();
+      portENTER_CRITICAL(&stateMux);
+      g.ax = mpu.getAccX() * 9.80665f;
+      g.ay = mpu.getAccY() * 9.80665f;
+      g.az = mpu.getAccZ() * 9.80665f;
+      g.gx = mpu.getGyroX() * (float)M_PI / 180.0f;
+      g.gy = mpu.getGyroY() * (float)M_PI / 180.0f;
+      g.gz = mpu.getGyroZ() * (float)M_PI / 180.0f;
+      portEXIT_CRITICAL(&stateMux);
+    }
 
     vTaskDelay(pdMS_TO_TICKS(5));
   }
@@ -778,6 +813,7 @@ void setup() {
   pinMode(PIN_R_IN2, OUTPUT);
   pinMode(PIN_L_IN1, OUTPUT);
   pinMode(PIN_L_IN2, OUTPUT);
+  setupMotorPwm();
   digitalWrite(PIN_R_IN1, LOW);
   digitalWrite(PIN_R_IN2, LOW);
   digitalWrite(PIN_L_IN1, LOW);

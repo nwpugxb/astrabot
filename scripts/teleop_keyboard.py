@@ -37,8 +37,8 @@ from std_msgs.msg import String
 
 MIN_SPEED = 30
 MAX_SPEED = 80
-CMD_VEL_PUBLISH_HZ = 10
-CMD_VEL_PUB_INTERVAL = 1.0 / CMD_VEL_PUBLISH_HZ  # 10 Hz rate gate for /cmd_vel
+CMD_VEL_PUBLISH_HZ = 20
+CMD_VEL_PUB_INTERVAL = 1.0 / CMD_VEL_PUBLISH_HZ
 CMD_VEL_QOS_DEPTH = 1
 REPEAT_INTERVAL = CMD_VEL_PUB_INTERVAL
 LOOP_INTERVAL = 0.02  # UI / evdev poll (~50 Hz); publish gated in CmdVelTeleopBridge
@@ -185,7 +185,11 @@ def _open_evdev_keyboard(device_path: Optional[str] = None):
 class EvdevHoldTracker:
     """Track WASD hold/release from the physical keyboard via /dev/input."""
 
-    def __init__(self, device_path: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        device_path: Optional[str] = None,
+        on_motion: Optional[Callable[[str], None]] = None,
+    ) -> None:
         self._device, self._ecodes = _open_evdev_keyboard(device_path)
         self._hint = f"Keyboard: {self._device.path} ({self._device.name})"
         self._held: set[str] = set()
@@ -193,7 +197,8 @@ class EvdevHoldTracker:
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._aux_q: queue.Queue[str] = queue.Queue(maxsize=32)
-        self._motion_edge_q: queue.Queue[str] = queue.Queue(maxsize=8)
+        self._on_motion = on_motion
+        self.speed = MIN_SPEED
         ecodes = self._ecodes
         self._motion_codes = {
             ecodes.KEY_W: "f",
@@ -239,11 +244,8 @@ class EvdevHoldTracker:
                         elif event.value == 0 and motion in self._held:
                             self._held.discard(motion)
                             self._held_order = [m for m in self._held_order if m in self._held]
-                    if event.value in (0, 1):
-                        try:
-                            self._motion_edge_q.put_nowait(self.get_motion())
-                        except queue.Full:
-                            pass
+                    if event.value in (0, 1) and self._on_motion is not None:
+                        self._on_motion(self.get_motion())
                 elif event.value == 1 and event.code in self._aux_codes:
                     try:
                         self._aux_q.put_nowait(self._aux_codes[event.code])
@@ -266,12 +268,6 @@ class EvdevHoldTracker:
                 if motion in self._held:
                     return motion
             return "s"
-
-    def poll_motion_edge(self) -> Optional[str]:
-        try:
-            return self._motion_edge_q.get_nowait()
-        except queue.Empty:
-            return None
 
     def poll_aux(self) -> Optional[str]:
         try:
@@ -428,7 +424,7 @@ def _drive_loop(
     should_run: Callable[[], bool],
     on_exit: Callable[[], None],
 ) -> None:
-    speed = 30
+    speed = getattr(tracker, "speed", MIN_SPEED)
     motion = "s"
     last_cmd = "s"
     last_arduino = ""
@@ -458,15 +454,7 @@ def _drive_loop(
                     last_send_time = time.time()
                 aux = tracker.poll_aux()
 
-            if hasattr(tracker, "poll_motion_edge"):
-                edge_motion = tracker.poll_motion_edge()
-                while edge_motion is not None:
-                    motion = edge_motion
-                    cmd = _motion_cmd(motion, speed)
-                    send_cmd(cmd)
-                    last_cmd = cmd
-                    last_send_time = time.time()
-                    edge_motion = tracker.poll_motion_edge()
+            tracker.speed = speed
 
             key = stdscr.getch()
             if key == 27:
@@ -493,6 +481,7 @@ def _drive_loop(
                 last_cmd = cmd
                 last_send_time = now
 
+            tracker.speed = speed
             draw_screen(stdscr, motion, last_cmd, speed, last_arduino, mode, tracker.hint)
             time.sleep(LOOP_INTERVAL)
     finally:
@@ -572,16 +561,11 @@ class CmdVelTeleopBridge(Node):
     def send_cmd(self, cmd: str) -> None:
         motion, speed = _parse_motion_cmd(cmd)
         twist = _motion_speed_to_twist(motion, speed)
-        now = time.time()
-        # No smoothing: any new target (stop, reversal, speed change) publishes immediately.
-        # Rate limit applies only to identical repeat publishes while key is held.
-        changed = not self._twist_equal(twist, self._last_published)
-        if changed or (now - self._last_pub_time) >= self._pub_interval:
-            self._pub.publish(twist)
-            self._last_pub_time = now
-            self._last_published = Twist()
-            self._last_published.linear.x = twist.linear.x
-            self._last_published.angular.z = twist.angular.z
+        self._pub.publish(twist)
+        self._last_pub_time = time.time()
+        self._last_published = Twist()
+        self._last_published.linear.x = twist.linear.x
+        self._last_published.angular.z = twist.angular.z
         self._last_twist = twist
 
     def drain_feedback(self) -> Optional[str]:
@@ -622,6 +606,11 @@ def run_ros_teleop(stdscr, tracker: HoldTracker, cmd_vel: bool = False) -> None:
     mode = "ROS /cmd_vel (ESP32 micro-ROS)" if cmd_vel else "ROS /arduino_teleop_cmd"
     if cmd_vel:
         node = CmdVelTeleopBridge()
+
+        def on_motion(m: str) -> None:
+            node.send_cmd(_motion_cmd(m, tracker.speed))
+
+        tracker._on_motion = on_motion
     else:
         node = RosTeleopBridge()
     spin_stop = threading.Event()

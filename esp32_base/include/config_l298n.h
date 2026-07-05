@@ -46,10 +46,10 @@ static const float M_PER_COUNT =
 static const bool R_ENC_INVERT = false;
 static const bool L_ENC_INVERT = false;
 
-// ---------------- Speed loop (25 ms = 40 Hz; was 100 ms) -------------------
-static const uint32_t CONTROL_INTERVAL_MS = 25;
+// ---------------- Speed loop (100 ms — matches Arduino PID-full.ino) ---------
+static const uint32_t CONTROL_INTERVAL_MS = 100;
 
-// Target unit: encoder counts per CONTROL_INTERVAL_MS (signed).
+// Target unit: encoder counts per 100 ms (signed). PID scales to CONTROL_INTERVAL_MS.
 static const float TARGET_MAX      = 80.0f;
 static const float TARGET_DEADBAND = 10.0f;
 
@@ -58,7 +58,7 @@ static const float KP_LEFT  = 2.5f;
 
 static const int   PWM_MIN = 0;
 static const int   PWM_MAX = 255;
-static const float PWM_STEP_LIMIT = 255.0f;  // no PWM ramp; smoothing is host-side only
+static const float PWM_STEP_LIMIT = 15.0f;   // max PWM change per 100 ms (Arduino value)
 
 static const int   STALL_PWM_THRESHOLD = 90;   // was 240 (L298N); keep above FF table when tuning
 static const float STALL_SPEED_RATIO   = 0.7f;
@@ -75,11 +75,18 @@ static const bool MOTORS_REQUIRE_AGENT = true;
 // Closed-loop: encoder PID on top of feedforward table below.
 static const bool OPEN_LOOP_MOTOR = false;
 
+// DRV8871 PWM carrier (Hz). Low default ~1 kHz can cause audible/cogging jerk.
+static const uint32_t MOTOR_PWM_FREQ_HZ = 20000;
+static const uint8_t  MOTOR_PWM_BITS    = 8;
+
+// Stop if no fresh /cmd_vel (teleop repeats at 20 Hz while key is held).
+static const uint32_t CMD_TIMEOUT_MS = 300;
+
 // Keyboard tune session (./run_motor_pwm_tune.sh):
 // Host publishes /motor_ff_pwm (0-255) to override getBasePWM() live; PID + stall stay on.
 static const uint32_t FF_OVERRIDE_TIMEOUT_MS = 3000;
 
-// Minimum PWM to overcome static friction when |target| > 0 (deadband jump in updateOneWheel).
+// Minimum PWM for static friction — applied only on start kick, not every PID tick.
 static const int PWM_START_FLOOR = 75;
 
 // DRV8871 feedforward PWM (0-255) vs |target| in counts/100ms.
@@ -105,8 +112,7 @@ static const uint32_t STALL_AUTO_CLEAR_MS = 1000;
 static const char AGENT_IP[]      = "192.168.1.12";
 static const uint16_t AGENT_PORT  = 8888;
 
-// ---------------- ROS / micro-ROS ----------------------------------------
-static const uint32_t CMD_TIMEOUT_MS = 500;
+// Keyboard tune session (./run_motor_pwm_tune.sh):
 static const uint32_t PUB_ODOM_HZ    = 10;
 static const uint32_t PUB_IMU_HZ     = 10;
 static const uint32_t PUB_TOF_HZ     = 5; //10;

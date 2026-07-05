@@ -28,4 +28,20 @@ EOF
   exit 1
 fi
 
+# PWM tune GUI also publishes /cmd_vel at 20 Hz (stop when idle) — causes jerk/stutter.
+if command -v ros2 >/dev/null 2>&1; then
+  pub_count="$(ros2 topic info /cmd_vel 2>/dev/null | sed -n 's/Publisher count: //p' | head -1 || true)"
+  if [[ -n "${pub_count}" && "${pub_count}" -ge 2 ]]; then
+    cat >&2 <<EOF
+Warning: /cmd_vel has ${pub_count} publishers (expected 1 for teleop).
+
+Close the PWM tune window if it is still open:
+  ./run_motor_pwm_tune.sh  -> close "Deck Robot PWM Tune" window
+  or: pkill -f motor_pwm_tune_gui_node
+
+Two nodes fighting on /cmd_vel causes stop/go stutter while driving.
+EOF
+  fi
+fi
+
 exec python3 "$ROOT/scripts/teleop_keyboard.py" --cmd-vel "$@"
