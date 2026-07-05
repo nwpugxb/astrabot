@@ -46,8 +46,8 @@ static const float M_PER_COUNT =
 static const bool R_ENC_INVERT = false;
 static const bool L_ENC_INVERT = false;
 
-// ---------------- Speed loop (100 ms, same as Arduino firmware) ------------
-static const uint32_t CONTROL_INTERVAL_MS = 100;
+// ---------------- Speed loop (25 ms = 40 Hz; was 100 ms) -------------------
+static const uint32_t CONTROL_INTERVAL_MS = 25;
 
 // Target unit: encoder counts per CONTROL_INTERVAL_MS (signed).
 static const float TARGET_MAX      = 80.0f;
@@ -79,16 +79,18 @@ static const bool OPEN_LOOP_MOTOR = false;
 // Host publishes /motor_ff_pwm (0-255) to override getBasePWM() live; PID + stall stay on.
 static const uint32_t FF_OVERRIDE_TIMEOUT_MS = 3000;
 
+// Minimum PWM to overcome static friction when |target| > 0 (deadband jump in updateOneWheel).
+static const int PWM_START_FLOOR = 75;
+
 // DRV8871 feedforward PWM (0-255) vs |target| in counts/100ms.
-// LE_30 calibrated: speed=30, min PWM=60, margin +10 -> 70 (USB serial, closed-loop, 16V).
-// Re-tune with ./run_motor_pwm_tune.sh; then set STALL_PROTECTION_ENABLE=true.
-static const int PWM_FF_LE_12 = 75;
-static const int PWM_FF_LE_20 = 72;
-static const int PWM_FF_LE_30 = 70;
-static const int PWM_FF_LE_40 = 78;
-static const int PWM_FF_LE_55 = 88;
-static const int PWM_FF_LE_70 = 100;
-static const int PWM_FF_LE_80 = 115;
+// Low-speed entries must exceed static-friction dead zone (tune with ./run_motor_pwm_tune.sh).
+static const int PWM_FF_LE_12 = 78;
+static const int PWM_FF_LE_20 = 80;
+static const int PWM_FF_LE_30 = 82;
+static const int PWM_FF_LE_40 = 88;
+static const int PWM_FF_LE_55 = 95;
+static const int PWM_FF_LE_70 = 105;
+static const int PWM_FF_LE_80 = 120;
 static const int PWM_FF_MAX   = 130;
 
 // Auto-clear stall latch (only used when STALL_PROTECTION_ENABLE is true).
@@ -104,9 +106,9 @@ static const char AGENT_IP[]      = "192.168.1.12";
 static const uint16_t AGENT_PORT  = 8888;
 
 // ---------------- ROS / micro-ROS ----------------------------------------
-static const uint32_t CMD_TIMEOUT_MS = 2000;
-static const uint32_t PUB_ODOM_HZ    = 20; //50;
-static const uint32_t PUB_IMU_HZ     = 20; //100;
+static const uint32_t CMD_TIMEOUT_MS = 500;
+static const uint32_t PUB_ODOM_HZ    = 10;
+static const uint32_t PUB_IMU_HZ     = 10;
 static const uint32_t PUB_TOF_HZ     = 5; //10;
 
 #define FRAME_ODOM  "odom"

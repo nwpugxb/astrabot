@@ -73,6 +73,8 @@ static long readEncLeft() {
 // ======================================================================
 // Motor control (from PID-full.ino)
 // ======================================================================
+static portMUX_TYPE motorMux = portMUX_INITIALIZER_UNLOCKED;
+
 static float targetRight = 0.0f;
 static float targetLeft  = 0.0f;
 static float pwmRight    = 0.0f;
@@ -163,6 +165,30 @@ static void setTargetsFromCmdVel(float v, float w) {
   targetLeft  = clampTarget(mpsToCountsPer100ms(vL));
 }
 
+// Apply feedforward PWM immediately when /cmd_vel arrives (don't wait for controlTask).
+static void kickMotorsFromCmdVel(float v, float w) {
+  setTargetsFromCmdVel(v, w);
+
+  auto kickOne = [](float target, float &pwm, bool isRight) {
+    float absT = fabsf(target);
+    if (absT <= 0.0f) {
+      pwm = 0.0f;
+      if (isRight) setRightMotor(0, 0);
+      else setLeftMotor(0, 0);
+      return;
+    }
+    int dir = (target > 0.0f) ? 1 : -1;
+    float base = getBasePWM(absT);
+    if (base < (float)PWM_START_FLOOR) base = (float)PWM_START_FLOOR;
+    pwm = base;
+    if (isRight) setRightMotor((int)pwm, dir);
+    else setLeftMotor((int)pwm, dir);
+  };
+
+  kickOne(targetRight, pwmRight, true);
+  kickOne(targetLeft, pwmLeft, false);
+}
+
 static void updateOneWheel(
     float targetSigned, float actualCount, float &pwmOutput, float Kp,
     int &stallCounter, bool &fault, bool isRight) {
@@ -197,6 +223,10 @@ static void updateOneWheel(
 
   pwmOutput += diff;
   pwmOutput = constrain(pwmOutput, (float)PWM_MIN, (float)PWM_MAX);
+
+  if (targetAbs > 0.0f && pwmOutput < (float)PWM_START_FLOOR) {
+    pwmOutput = (float)PWM_START_FLOOR;
+  }
 
   if (isRight) setRightMotor((int)pwmOutput, direction);
   else setLeftMotor((int)pwmOutput, direction);
@@ -364,9 +394,11 @@ static void setMotorsEnabled(bool on) {
   g.motors_enabled = on;
   portEXIT_CRITICAL(&stateMux);
   if (!on) {
+    portENTER_CRITICAL(&motorMux);
     stopMotors();
     rightFault = leftFault = false;
     rightStallCounter = leftStallCounter = 0;
+    portEXIT_CRITICAL(&motorMux);
   }
 }
 
@@ -417,15 +449,24 @@ static void integrateOdom(
 
 static void cmd_vel_cb(const void *msgin) {
   const geometry_msgs__msg__Twist *m = (const geometry_msgs__msg__Twist *)msgin;
+  float v = m->linear.x;
+  float w = m->angular.z;
+  bool motors_on;
+
   portENTER_CRITICAL(&stateMux);
-  g.cmd_v = m->linear.x;
-  g.cmd_w = m->angular.z;
+  g.cmd_v = v;
+  g.cmd_w = w;
   g.cmd_stamp_ms = millis();
+  motors_on = g.motors_enabled;
   portEXIT_CRITICAL(&stateMux);
 
-  if (fabsf(m->linear.x) < 1e-6f && fabsf(m->angular.z) < 1e-6f) {
+  portENTER_CRITICAL(&motorMux);
+  if (fabsf(v) < 1e-6f && fabsf(w) < 1e-6f) {
     stopMotors();
+  } else if (motors_on) {
+    kickMotorsFromCmdVel(v, w);
   }
+  portEXIT_CRITICAL(&motorMux);
 }
 
 static void ff_pwm_cb(const void *msgin) {
@@ -595,6 +636,9 @@ static void microRosTask(void *arg) {
           Serial.println("micro-ROS agent connected");
 #endif
           setMotorsEnabled(true);
+          portENTER_CRITICAL(&stateMux);
+          g.cmd_stamp_ms = millis();
+          portEXIT_CRITICAL(&stateMux);
           lastPingMs = millis();
         } else if (agent_state == WAITING_AGENT) {
           destroy_entities();
@@ -609,7 +653,9 @@ static void microRosTask(void *arg) {
             break;
           }
         }
-        rclc_executor_spin_some(&executor, RCL_MS_TO_NS(1));
+        for (int i = 0; i < 8; ++i) {
+          rclc_executor_spin_some(&executor, 0);
+        }
         continue;
       }
       case AGENT_DISCONNECTED:
@@ -660,10 +706,11 @@ static void controlTask(void *arg) {
       float odomTargetR = 0.0f;
       float odomTargetL = 0.0f;
 
+      portENTER_CRITICAL(&motorMux);
       if (!motors_on) {
         stopMotors();
       } else {
-        if ((now - cmd_ts) > CMD_TIMEOUT_MS) {
+        if (cmd_ts != 0 && (now - cmd_ts) > CMD_TIMEOUT_MS) {
           cmd_v = 0;
           cmd_w = 0;
         }
@@ -677,6 +724,7 @@ static void controlTask(void *arg) {
         updateOneWheel(targetLeft, deltaL, pwmLeft, KP_LEFT,
                        leftStallCounter, leftFault, false);
       }
+      portEXIT_CRITICAL(&motorMux);
 
       portENTER_CRITICAL(&stateMux);
       integrateOdom(odomTargetR, odomTargetL, deltaR, deltaL, dt);

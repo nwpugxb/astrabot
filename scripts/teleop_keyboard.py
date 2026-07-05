@@ -193,6 +193,7 @@ class EvdevHoldTracker:
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._aux_q: queue.Queue[str] = queue.Queue(maxsize=32)
+        self._motion_edge_q: queue.Queue[str] = queue.Queue(maxsize=8)
         ecodes = self._ecodes
         self._motion_codes = {
             ecodes.KEY_W: "f",
@@ -238,6 +239,11 @@ class EvdevHoldTracker:
                         elif event.value == 0 and motion in self._held:
                             self._held.discard(motion)
                             self._held_order = [m for m in self._held_order if m in self._held]
+                    if event.value in (0, 1):
+                        try:
+                            self._motion_edge_q.put_nowait(self.get_motion())
+                        except queue.Full:
+                            pass
                 elif event.value == 1 and event.code in self._aux_codes:
                     try:
                         self._aux_q.put_nowait(self._aux_codes[event.code])
@@ -260,6 +266,12 @@ class EvdevHoldTracker:
                 if motion in self._held:
                     return motion
             return "s"
+
+    def poll_motion_edge(self) -> Optional[str]:
+        try:
+            return self._motion_edge_q.get_nowait()
+        except queue.Empty:
+            return None
 
     def poll_aux(self) -> Optional[str]:
         try:
@@ -445,6 +457,16 @@ def _drive_loop(
                     last_cmd = cmd
                     last_send_time = time.time()
                 aux = tracker.poll_aux()
+
+            if hasattr(tracker, "poll_motion_edge"):
+                edge_motion = tracker.poll_motion_edge()
+                while edge_motion is not None:
+                    motion = edge_motion
+                    cmd = _motion_cmd(motion, speed)
+                    send_cmd(cmd)
+                    last_cmd = cmd
+                    last_send_time = time.time()
+                    edge_motion = tracker.poll_motion_edge()
 
             key = stdscr.getch()
             if key == 27:
