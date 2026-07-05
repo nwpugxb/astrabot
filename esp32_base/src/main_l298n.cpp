@@ -793,12 +793,9 @@ static void controlTask(void *arg) {
 }
 
 void setup() {
-  // === 必须加在 Serial.begin 之前！ ===
-  Serial.setRxBufferSize(2048); // 强行扩容接收缓冲区至 2048 字节
-  Serial.setTxBufferSize(2048); // 强行扩容发送缓冲区至 2048 字节
-  Serial.begin(921600);        // 保持 921600 高速波特率
-  
-  set_microros_serial_transports(Serial);
+  // Buffer expansion must be before Serial.begin (inside init_microros_transport).
+  Serial.setRxBufferSize(2048);
+  Serial.setTxBufferSize(2048);
 
   char wifi_ssid[] = MICROROS_WIFI_SSID;
   char wifi_pass[] = MICROROS_WIFI_PASS;
