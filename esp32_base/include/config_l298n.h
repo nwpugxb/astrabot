@@ -103,6 +103,32 @@ static const int PWM_FF_MAX   = 130;
 // Auto-clear stall latch (only used when STALL_PROTECTION_ENABLE is true).
 static const uint32_t STALL_AUTO_CLEAR_MS = 1000;
 
+// ---------------- RPLIDAR A1 UART ↔ TCP client (host is server) -----------
+// Wire (LIDAR_SWAP_UART_PINS=1 — matches the dedicated-bridge bring-up that worked):
+//   A1 TX -> GPIO19
+//   A1 RX -> GPIO18
+//   A1 GND -> ESP32 GND   (external 5V for A1; do not use ESP32 3.3V)
+// If still no reply after a correct reflash, set LIDAR_SWAP_UART_PINS to 0
+// (then A1 TX->GPIO18, A1 RX->GPIO19) and flash again.
+// Host: same PC as micro-ROS agent (AGENT_IP), TCP port LIDAR_HOST_PORT.
+#ifndef LIDAR_BRIDGE_ENABLE
+#define LIDAR_BRIDGE_ENABLE 1
+#endif
+static const int PIN_LIDAR_RX = 18;
+static const int PIN_LIDAR_TX = 19;
+#ifndef LIDAR_SWAP_UART_PINS
+#define LIDAR_SWAP_UART_PINS 1
+#endif
+static const uint32_t LIDAR_UART_BAUD   = 115200;
+static const uint16_t LIDAR_HOST_PORT  = 20108;
+static const uint32_t LIDAR_RECONNECT_MS = 2000;
+// Keep RX buffer small — large buffers caused multi-second point-cloud lag.
+static const size_t LIDAR_UART_RX_BUF  = 2048;
+static const size_t LIDAR_BRIDGE_CHUNK = 256;
+// If UART backlog exceeds this, drop oldest bytes (prefer fresh scans).
+static const int LIDAR_UART_DROP_ABOVE = 1024;
+static const int LIDAR_UART_KEEP_AFTER_DROP = 256;
+
 // ---------------- micro-ROS serial (USB) ---------------------------------
 #define MICROROS_SERIAL_BAUD 921600
 

@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""TCP relay: ESP32 finds the host (client); sllidar uses localhost.
-
-Flow (host is the server — same idea as micro-ROS AGENT_IP):
-  1. Listen on device_port (20108) for ESP32.
-  2. After ESP32 connects, listen on 127.0.0.1:sllidar_port (20109).
-  3. Bridge bytes; log sllidar<->esp32 counts each second.
-"""
+"""TCP relay: ESP32 finds the host (client); sllidar uses localhost."""
 
 from __future__ import annotations
 
@@ -17,6 +11,13 @@ from typing import Optional
 
 import rclpy
 from rclpy.node import Node
+
+
+def _tune_conn(conn: socket.socket) -> None:
+    conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+    # Modest buffers — large enough for handshake, not multi-second queues.
+    conn.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, 16 * 1024)
+    conn.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, 16 * 1024)
 
 
 class RplidarTcpRelay(Node):
@@ -56,20 +57,19 @@ class RplidarTcpRelay(Node):
                 conn, addr = listener.accept()
             except socket.timeout:
                 continue
-            conn.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
+            _tune_conn(conn)
             self.get_logger().info(f"{label} connected from {addr[0]}:{addr[1]}")
             return conn
         return None
 
     def _pump(self, device: socket.socket, sllidar: socket.socket) -> None:
-        """device=ESP32 side, sllidar=local SDK side."""
         sockets = [device, sllidar]
         to_esp = 0
         from_esp = 0
         last_log = time.monotonic()
         while not self._stop.is_set():
             try:
-                readable, _, errored = select.select(sockets, [], sockets, 0.5)
+                readable, _, errored = select.select(sockets, [], sockets, 0.05)
             except (ValueError, OSError):
                 break
             if errored:

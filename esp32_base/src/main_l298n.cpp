@@ -9,6 +9,10 @@
 // Flash (WiFi):       pio run -e esp32dev_l298n_wifi -t upload
 // Agent (serial):     scripts/run_microros_agent.sh /dev/ttyUSB0
 // Agent (WiFi):       scripts/run_microros_agent_wifi.sh
+// Lidar + control:    scripts/run_deck_wifi_lidar.sh
+//
+// RPLIDAR A1 on UART2 (GPIO18/19) is TCP-bridged to AGENT_IP:20108 (passthrough).
+// Host runs rplidar_tcp_relay + sllidar; ESP32 does not parse scans.
 // ======================================================================
 #include <Arduino.h>
 #include <Wire.h>
@@ -34,6 +38,7 @@
 #include "config_l298n.h"
 #include "microros_qos.h"
 #include "microros_transport_setup.h"
+#include "lidar_tcp_bridge.h"
 
 // ======================================================================
 // Encoder ISRs
@@ -823,6 +828,7 @@ void setup() {
 
   xTaskCreatePinnedToCore(controlTask, "control", 4096, NULL, 5, NULL, 1);
   xTaskCreatePinnedToCore(microRosTask, "microros", 8192, NULL, 5, NULL, 0);
+  start_lidar_tcp_bridge();
 }
 
 void loop() {
