@@ -41,6 +41,8 @@ setup(
             "sim_slam_scan_viz_node = indoor_bringup.sim_slam_scan_viz_node:main",
             "sim_gt_odom_node = indoor_bringup.sim_gt_odom_node:main",
             "static_joint_state_node = indoor_bringup.static_joint_state_node:main",
+            "scan_to_cloud_node = indoor_bringup.scan_to_cloud_node:main",
+            "rplidar_tcp_relay_node = indoor_bringup.rplidar_tcp_relay_node:main",
         ],
     },
 )
