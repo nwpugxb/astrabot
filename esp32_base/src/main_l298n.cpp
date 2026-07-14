@@ -32,6 +32,7 @@
 #include <sensor_msgs/msg/imu.h>
 #include <sensor_msgs/msg/range.h>
 #include <geometry_msgs/msg/twist.h>
+#include <geometry_msgs/msg/pose_stamped.h>
 #include <std_msgs/msg/float32.h>
 #include <std_msgs/msg/u_int8_multi_array.h>
 
@@ -240,17 +241,33 @@ static void updateOneWheel(
   float targetThisInterval = targetAbs * intervalScale;
   float error = targetThisInterval - actualCount;
   if (fabsf(error) < 1.0f) error = 0.0f;
-  float targetPWM = OPEN_LOOP_MOTOR ? basePWM : (basePWM + Kp * error);
+
+  float targetPWM;
+  if (OPEN_LOOP_MOTOR) {
+    targetPWM = basePWM;
+  } else if (actualCount < targetThisInterval * ENC_TRUST_RATIO) {
+    // Encoder barely counting — don't wind PWM to 255 (right-wheel buzz case).
+    targetPWM = basePWM;
+  } else {
+    float corr = constrain(Kp * error, PWM_P_CORR_MIN, PWM_P_CORR_MAX);
+    targetPWM = basePWM + corr;
+    const float floorPwm = basePWM * PWM_FF_FLOOR_RATIO;
+    if (targetPWM < floorPwm) targetPWM = floorPwm;
+  }
   targetPWM = constrain(targetPWM, (float)PWM_MIN, (float)PWM_MAX);
 
   if (OPEN_LOOP_MOTOR) {
     pwmOutput = targetPWM;
   } else {
     float diff = targetPWM - pwmOutput;
-    if (diff > PWM_STEP_LIMIT) diff = PWM_STEP_LIMIT;
-    if (diff < -PWM_STEP_LIMIT) diff = -PWM_STEP_LIMIT;
+    const float lim = (diff >= 0.0f) ? PWM_STEP_LIMIT_UP : PWM_STEP_LIMIT_DOWN;
+    if (diff > lim) diff = lim;
+    if (diff < -lim) diff = -lim;
     pwmOutput += diff;
     pwmOutput = constrain(pwmOutput, (float)PWM_MIN, (float)PWM_MAX);
+    // Keep floor after slew so a large DOWN step can't zero a commanded wheel.
+    const float floorPwm = basePWM * PWM_FF_FLOOR_RATIO;
+    if (pwmOutput < floorPwm) pwmOutput = floorPwm;
   }
 
   if (isRight) setRightMotor((int)pwmOutput, direction);
@@ -401,10 +418,12 @@ static rcl_node_t node;
 static rclc_executor_t executor;
 static rcl_timer_t timer;
 
-static rcl_publisher_t pub_odom, pub_imu, pub_tof_f, pub_tof_l, pub_tof_r, pub_tof_status;
+static rcl_publisher_t pub_odom, pub_odom_pose, pub_imu, pub_tof_f, pub_tof_l, pub_tof_r,
+    pub_tof_status;
 static rcl_subscription_t sub_cmd, sub_ff;
 
 static nav_msgs__msg__Odometry odom_msg;
+static geometry_msgs__msg__PoseStamped odom_pose_msg;
 static sensor_msgs__msg__Imu imu_msg;
 static sensor_msgs__msg__Range tof_f_msg, tof_l_msg, tof_r_msg;
 static geometry_msgs__msg__Twist cmd_msg;
@@ -532,6 +551,23 @@ static void timer_cb(rcl_timer_t *t, int64_t) {
   s = g;
   portEXIT_CRITICAL(&stateMux);
 
+  // Prefer small PoseStamped first — fits default XRCE 512B MTU; full Odometry often does not.
+  fill_stamp(&odom_pose_msg.header.stamp);
+  odom_pose_msg.pose.position.x = s.x;
+  odom_pose_msg.pose.position.y = s.y;
+  odom_pose_msg.pose.orientation.z = sinf(s.yaw * 0.5f);
+  odom_pose_msg.pose.orientation.w = cosf(s.yaw * 0.5f);
+  RCSOFT(rcl_publish(&pub_odom_pose, &odom_pose_msg, NULL));
+
+  fill_stamp(&odom_msg.header.stamp);
+  odom_msg.pose.pose.position.x = s.x;
+  odom_msg.pose.pose.position.y = s.y;
+  odom_msg.pose.pose.orientation.z = sinf(s.yaw * 0.5f);
+  odom_msg.pose.pose.orientation.w = cosf(s.yaw * 0.5f);
+  odom_msg.twist.twist.linear.x = s.vx;
+  odom_msg.twist.twist.angular.z = s.vyaw;
+  RCSOFT(rcl_publish(&pub_odom, &odom_msg, NULL));
+
   fill_stamp(&imu_msg.header.stamp);
   imu_msg.linear_acceleration.x = s.ax;
   imu_msg.linear_acceleration.y = s.ay;
@@ -541,17 +577,6 @@ static void timer_cb(rcl_timer_t *t, int64_t) {
   imu_msg.angular_velocity.z = s.gz;
   imu_msg.orientation_covariance[0] = -1.0;
   RCSOFT(rcl_publish(&pub_imu, &imu_msg, NULL));
-
-  if (tick % (PUB_IMU_HZ / PUB_ODOM_HZ) == 0) {
-    fill_stamp(&odom_msg.header.stamp);
-    odom_msg.pose.pose.position.x = s.x;
-    odom_msg.pose.pose.position.y = s.y;
-    odom_msg.pose.pose.orientation.z = sinf(s.yaw * 0.5f);
-    odom_msg.pose.pose.orientation.w = cosf(s.yaw * 0.5f);
-    odom_msg.twist.twist.linear.x = s.vx;
-    odom_msg.twist.twist.angular.z = s.vyaw;
-    RCSOFT(rcl_publish(&pub_odom, &odom_msg, NULL));
-  }
 
   if (tick % (PUB_IMU_HZ / PUB_TOF_HZ) == 0) {
     fill_range(&tof_f_msg, s.tof_m[0]);
@@ -572,6 +597,9 @@ static void init_messages() {
   nav_msgs__msg__Odometry__init(&odom_msg);
   set_string(&odom_msg.header.frame_id, FRAME_ODOM);
   set_string(&odom_msg.child_frame_id, FRAME_BASE);
+
+  geometry_msgs__msg__PoseStamped__init(&odom_pose_msg);
+  set_string(&odom_pose_msg.header.frame_id, FRAME_ODOM);
 
   sensor_msgs__msg__Imu__init(&imu_msg);
   set_string(&imu_msg.header.frame_id, FRAME_IMU);
@@ -600,6 +628,9 @@ static bool create_entities() {
 
   static rmw_qos_profile_t qos_reliable = microros_qos_reliable_depth1();
 
+  RCCHECK(microros_publisher_init_best_effort_depth1(
+      &pub_odom_pose, &node,
+      ROSIDL_GET_MSG_TYPE_SUPPORT(geometry_msgs, msg, PoseStamped), "odom_pose"));
   RCCHECK(microros_publisher_init_best_effort_depth1(
       &pub_odom, &node, ROSIDL_GET_MSG_TYPE_SUPPORT(nav_msgs, msg, Odometry), "odom"));
   RCCHECK(microros_publisher_init_best_effort_depth1(
@@ -639,6 +670,7 @@ static void destroy_entities() {
   rmw_context_t *rmw_ctx = rcl_context_get_rmw_context(&support.context);
   (void)rmw_uros_set_context_entity_destroy_session_timeout(rmw_ctx, 0);
 
+  rcl_publisher_fini(&pub_odom_pose, &node);
   rcl_publisher_fini(&pub_odom, &node);
   rcl_publisher_fini(&pub_imu, &node);
   rcl_publisher_fini(&pub_tof_f, &node);
@@ -681,21 +713,32 @@ static void microRosTask(void *arg) {
         }
         break;
       case AGENT_CONNECTED: {
+        // Shared WiFi with lidar TCP: be very tolerant before tearing down XRCE.
+        // Destroying entities leaves "ghost" /odom publishers on the agent with no data.
+        static uint8_t ping_fails = 0;
         uint32_t nowMs = millis();
-        if (nowMs - lastPingMs >= 500) {
+        if (nowMs - lastPingMs >= 2000) {
           lastPingMs = nowMs;
           if (RMW_RET_OK != rmw_uros_ping_agent(100, 1)) {
-            agent_state = AGENT_DISCONNECTED;
-            break;
+            ping_fails++;
+            if (ping_fails >= 5) {
+              ping_fails = 0;
+              agent_state = AGENT_DISCONNECTED;
+              break;
+            }
+          } else {
+            ping_fails = 0;
           }
         }
-        for (int i = 0; i < 8; ++i) {
-          rclc_executor_spin_some(&executor, 0);
+        // Non-zero timeout so timers (/odom /imu) actually fire under load.
+        for (int i = 0; i < 4; ++i) {
+          rclc_executor_spin_some(&executor, RCL_MS_TO_NS(5));
         }
         continue;
       }
       case AGENT_DISCONNECTED:
-        setMotorsEnabled(false);
+        // Keep last /cmd_vel alive; CMD_TIMEOUT_MS still stops if host really goes away.
+        // Previously setMotorsEnabled(false) here caused mid-drive stops on flaky WiFi pings.
         destroy_entities();
         agent_state = WAITING_AGENT;
         break;

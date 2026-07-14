@@ -197,7 +197,7 @@ static void lidarBridgeTask(void *arg) {
     }
 
     bool busy = false;
-    for (int i = 0; i < 64; ++i) {
+    for (int i = 0; i < 16; ++i) {
       const size_t a = lidar_pump_uart_to_tcp();
       const size_t b = lidar_pump_tcp_to_uart();
       if (a == 0 && b == 0) {
@@ -205,13 +205,14 @@ static void lidarBridgeTask(void *arg) {
       }
       busy = true;
     }
-    vTaskDelay(pdMS_TO_TICKS(busy ? 0 : 1));
+    // Always yield so micro-ROS (core0) can keep /odom /cmd_vel on WiFi.
+    vTaskDelay(pdMS_TO_TICKS(busy ? 2 : 5));
   }
 }
 
 static void start_lidar_tcp_bridge() {
-  // Core 1 with motor control (gaps of 100 ms loop).
-  xTaskCreatePinnedToCore(lidarBridgeTask, "lidar_tcp", 6144, NULL, 4, NULL, 1);
+  // Priority below motor loop; never starve micro-ROS WiFi.
+  xTaskCreatePinnedToCore(lidarBridgeTask, "lidar_tcp", 6144, NULL, 1, NULL, 1);
   Serial.printf("Lidar bridge task started (core1) → %s:%u\n", AGENT_IP,
                 (unsigned)LIDAR_HOST_PORT);
 }

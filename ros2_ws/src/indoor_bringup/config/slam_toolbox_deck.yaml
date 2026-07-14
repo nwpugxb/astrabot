@@ -1,16 +1,12 @@
 slam_toolbox:
   ros__parameters:
-    # ---- Frames / topics ----
     odom_frame: odom
     map_frame: map
-    base_frame: base_footprint        # matches ESP32 odom child frame
-    scan_topic: /scan
+    base_frame: base_footprint
+    scan_topic: /scan_slam
     use_sim_time: false
+    mode: mapping
 
-    # ---- Mode ----
-    mode: mapping                      # switch to "localization" + load a saved map later
-
-    # ---- Solver ----
     solver_plugin: solver_plugins::CeresSolver
     ceres_linear_solver: SPARSE_NORMAL_CHOLESKY
     ceres_preconditioner: SCHUR_JACOBI
@@ -18,36 +14,33 @@ slam_toolbox:
     ceres_dogleg_type: TRADITIONAL_DOGLEG
     ceres_loss_function: None
 
-    # ---- Map / publishing ----
     resolution: 0.05
-    map_update_interval: 2.0
-    transform_publish_period: 0.02     # map->odom TF rate
+    map_update_interval: 1.0
+    transform_publish_period: 0.02
     transform_timeout: 0.5
     tf_buffer_duration: 30.0
 
-    # ---- A1 range (12 m). Keep a margin below sensor max. ----
     max_laser_range: 12.0
     min_laser_range: 0.15
     minimum_time_interval: 0.2
 
-    # ---- Scan matching / keyframing ----
     use_scan_matching: true
     use_scan_barycenter: true
-    minimum_travel_distance: 0.2
-    minimum_travel_heading: 0.2
+    minimum_travel_distance: 0.0
+    minimum_travel_heading: 0.0
+    # With weak/missing wheel odom, still accept scans on a time basis.
+    minimum_time_interval: 0.3
     scan_buffer_size: 10
     scan_buffer_maximum_scan_distance: 12.0
     link_match_minimum_response_fine: 0.1
     link_scan_maximum_distance: 1.5
 
-    # ---- Loop closure ----
     do_loop_closing: true
     loop_search_maximum_distance: 3.0
     loop_match_minimum_chain_size: 10
     loop_match_minimum_response_coarse: 0.35
     loop_match_minimum_response_fine: 0.45
 
-    # ---- Correlation search ----
     correlation_search_space_dimension: 0.5
     correlation_search_space_resolution: 0.01
     correlation_search_space_smear_deviation: 0.1
@@ -55,7 +48,6 @@ slam_toolbox:
     loop_search_space_resolution: 0.05
     loop_search_space_smear_deviation: 0.03
 
-    # ---- Scan matcher penalties ----
     distance_variance_penalty: 0.5
     angle_variance_penalty: 1.0
     fine_search_angle_offset: 0.00349

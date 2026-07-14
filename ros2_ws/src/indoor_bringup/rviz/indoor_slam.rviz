@@ -23,9 +23,9 @@ Visualization Manager:
       Name: LaserScan
       Enabled: true
       Topic:
-        Value: /scan
+        Value: /scan_slam
         Depth: 5
-        Reliability Policy: Best Effort
+        Reliability Policy: Reliable
       Size (m): 0.03
       Style: Points
       Color: 255; 0; 0

@@ -29,7 +29,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         DeclareLaunchArgument("use_rviz", default_value="true"),
-        DeclareLaunchArgument("scan_mode", default_value="Sensitivity"),
+        DeclareLaunchArgument("scan_mode", default_value="Standard"),
         DeclareLaunchArgument("frame_id", default_value="laser"),
         DeclareLaunchArgument("device_port", default_value="20108"),
         DeclareLaunchArgument("sllidar_port", default_value="20109"),

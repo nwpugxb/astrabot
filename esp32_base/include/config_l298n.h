@@ -58,7 +58,11 @@ static const float KP_LEFT  = 2.5f;
 
 static const int   PWM_MIN = 0;
 static const int   PWM_MAX = 255;
-static const float PWM_STEP_LIMIT = 15.0f;   // max PWM change per 100 ms (Arduino value)
+// Slew limits per 100 ms control tick. Higher = snappier teleop (was 15 ≈ 1s to full).
+static const float PWM_STEP_LIMIT_UP   = 45.0f;   // accelerate
+static const float PWM_STEP_LIMIT_DOWN = 90.0f;   // decelerate / reverse toward zero
+// Back-compat alias (unused if UP/DOWN set).
+static const float PWM_STEP_LIMIT = PWM_STEP_LIMIT_UP;
 
 static const int   STALL_PWM_THRESHOLD = 90;   // was 240 (L298N); keep above FF table when tuning
 static const float STALL_SPEED_RATIO   = 0.7f;
@@ -72,15 +76,25 @@ static const bool STALL_PROTECTION_ENABLE = false;
 // Do not drive motors until micro-ROS agent is connected (prevents run on boot).
 static const bool MOTORS_REQUIRE_AGENT = true;
 
-// Closed-loop: encoder PID on top of feedforward table below.
+// Closed-loop with FF floor / P clamp (see updateOneWheel). Set true only for bench debug.
 static const bool OPEN_LOOP_MOTOR = false;
+
+// P correction clamp around feedforward (counts error → PWM).
+static const float PWM_P_CORR_MIN = -20.0f;  // don't pull far below FF
+static const float PWM_P_CORR_MAX = 35.0f;
+// Never drop below this fraction of FF while commanded (stops "runs then dies").
+static const float PWM_FF_FLOOR_RATIO = 0.80f;
+// If encoder reads < this fraction of target, ignore P and hold FF (dead/noisy encoder).
+static const float ENC_TRUST_RATIO = 0.25f;
 
 // DRV8871 PWM carrier (Hz). Low default ~1 kHz can cause audible/cogging jerk.
 static const uint32_t MOTOR_PWM_FREQ_HZ = 20000;
 static const uint8_t  MOTOR_PWM_BITS    = 8;
 
-// Stop if no fresh /cmd_vel (teleop repeats at 20 Hz while key is held).
-static const uint32_t CMD_TIMEOUT_MS = 300;
+// Stop if no fresh /cmd_vel. Teleop repeats at 20-30 Hz while driving, but the
+// shared WiFi link (micro-ROS UDP + lidar TCP) can drop BEST_EFFORT packets in
+// bursts; 300 ms tripped mid-drive. PC-side gates stop actively well before this.
+static const uint32_t CMD_TIMEOUT_MS = 1000;
 
 // Keyboard tune session (./run_motor_pwm_tune.sh):
 // Host publishes /motor_ff_pwm (0-255) to override getBasePWM() live; PID + stall stay on.

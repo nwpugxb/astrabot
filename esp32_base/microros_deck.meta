@@ -1,0 +1,11 @@
+{
+  "names": {
+    "rmw_microxrcedds": {
+      "cmake-args": [
+        "-DRMW_UXRCE_MAX_MESSAGE_SIZE=2048",
+        "-DRMW_UXRCE_ENTITY_CREATION_DESTROY_TIMEOUT=1000",
+        "-DRMW_UXRCE_STREAM_HISTORY=4"
+      ]
+    }
+  }
+}
